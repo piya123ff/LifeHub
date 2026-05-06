@@ -1,0 +1,363 @@
+/* ═══════════════════════════════════════════════════
+   GoalsPage — Phase 5
+   iPad-first grid layout
+═══════════════════════════════════════════════════ */
+
+.goals-page { position: relative; }
+
+/* ── Header row ──────────────────────────────────── */
+.goals-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: flex-start;
+  margin-bottom: var(--space-lg);
+}
+
+.goals-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 4px;
+}
+
+.goals-cat-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+
+.goals-add-btn {
+  margin-left: auto;
+  white-space: nowrap;
+  min-width: 140px;
+  height: 44px;
+  font-size: 0.9rem;
+}
+
+/* ── Filter chips ────────────────────────────────── */
+.filter-chip {
+  padding: 8px 16px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+  white-space: nowrap;
+  min-height: 38px;
+}
+.filter-chip:hover { border-color: var(--border-hover); color: var(--text-primary); }
+.filter-chip--active {
+  background: var(--accent-violet);
+  border-color: var(--accent-violet);
+  color: #fff;
+}
+
+/* ── Goal card grid ──────────────────────────────── */
+.goals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-lg);
+}
+
+/* ── Goal card ───────────────────────────────────── */
+.goal-card {
+  position: relative;
+  background: var(--bg-card-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  transition: border-color var(--duration) var(--ease),
+              box-shadow var(--duration) var(--ease),
+              transform var(--duration) var(--ease);
+  overflow: hidden;
+}
+.goal-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-card);
+  transform: translateY(-2px);
+}
+.goal-card--done {
+  border-color: rgba(74,222,128,0.3);
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(74,222,128,0.05) 100%);
+}
+
+/* Done ribbon */
+.goal-done-ribbon {
+  position: absolute;
+  top: 10px; right: -22px;
+  background: var(--accent-green);
+  color: #0d0d1a;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 4px 28px;
+  transform: rotate(30deg);
+  letter-spacing: 0.04em;
+}
+
+/* ── Card header ─────────────────────────────────── */
+.goal-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+.goal-emoji {
+  font-size: 1.8rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.goal-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.goal-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.goal-cat-tag {
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+/* ── Card action buttons ─────────────────────────── */
+.goal-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.goal-act-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+.goal-act-btn:hover { border-color: var(--border-hover); color: var(--text-primary); }
+.goal-act-btn--del:hover { border-color: var(--accent-rose); color: var(--accent-rose); }
+.goal-act-btn--confirm { background: var(--accent-rose); border-color: var(--accent-rose); color: #fff; }
+
+/* ── Progress bar ────────────────────────────────── */
+.goal-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: 4px;
+}
+.goal-progress-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-elevated);
+  border-radius: var(--r-full);
+  overflow: hidden;
+}
+.goal-pct {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* Progress fill colours */
+.fill-green  { background: var(--accent-green); }
+.fill-rose   { background: var(--accent-rose); }
+.fill-violet { background: var(--accent-violet); }
+.fill-blue   { background: var(--accent-blue); }
+.fill-teal   { background: var(--accent-teal); }
+.fill-amber  { background: var(--accent-amber); }
+.fill-orange { background: var(--accent-orange); }
+
+/* ── Numbers / progress edit ─────────────────────── */
+.goal-nums { margin-top: 4px; }
+
+.goal-progress-tap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: border-color var(--duration) var(--ease);
+  font-size: 0.88rem;
+}
+.goal-progress-tap:hover { border-color: var(--border-hover); }
+.goal-current {
+  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+.goal-sep { color: var(--text-muted); margin: 0 2px; }
+.goal-target { color: var(--text-secondary); }
+.goal-unit   { color: var(--text-secondary); font-size: 0.8rem; }
+.goal-edit-icon { color: var(--text-muted); margin-left: 4px; flex-shrink: 0; }
+
+.goal-edit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+.goal-progress-input {
+  width: 100px;
+  height: 36px;
+  font-size: 0.9rem;
+  padding: 0 var(--space-sm);
+}
+
+/* ── Footer ──────────────────────────────────────── */
+.goal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.goal-deadline {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-radius: var(--r-full);
+  padding: 3px 10px;
+}
+.goal-deadline--urgent {
+  color: var(--accent-amber);
+  background: rgba(251,191,36,0.1);
+}
+.goal-note {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-radius: var(--r-full);
+  padding: 3px 10px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.goal-completed-at {
+  font-size: 0.72rem;
+  color: var(--accent-green);
+  background: rgba(74,222,128,0.08);
+  border-radius: var(--r-full);
+  padding: 3px 10px;
+}
+
+/* ── Empty state ─────────────────────────────────── */
+.goals-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl) var(--space-lg);
+  text-align: center;
+  color: var(--text-secondary);
+  gap: var(--space-sm);
+}
+.goals-empty-icon { font-size: 3rem; }
+.goals-empty p { font-size: 1rem; color: var(--text-secondary); }
+.goals-empty span { font-size: 0.85rem; color: var(--text-muted); }
+
+/* ── Goal modal specifics ────────────────────────── */
+.emoji-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.emoji-btn {
+  width: 38px; height: 38px;
+  font-size: 1.1rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+  display: flex; align-items: center; justify-content: center;
+}
+.emoji-btn:hover { border-color: var(--border-hover); background: var(--bg-elevated); }
+.emoji-btn--active {
+  border-color: var(--accent-violet);
+  background: rgba(124,99,255,0.15);
+}
+
+.cat-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cat-chip-sm {
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+.cat-chip-sm:hover { border-color: var(--border-hover); color: var(--text-primary); }
+.cat-chip-sm--active {
+  background: rgba(124,99,255,0.2);
+  border-color: var(--accent-violet);
+  color: var(--accent-violet2);
+}
+
+/* ── Toast (shared with Workout) ─────────────────── */
+.wo-toast {
+  position: fixed;
+  bottom: calc(var(--bottomnav-height) + 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--r-full);
+  padding: 10px 20px;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  z-index: 200;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  animation: toastIn 0.2s var(--ease);
+}
+.wo-toast--ok   { border-color: rgba(74,222,128,0.4); }
+.wo-toast--warn { border-color: rgba(251,191,36,0.4); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── Responsive ──────────────────────────────────── */
+@media (min-width: 1024px) {
+  .goals-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .goals-header { flex-direction: column; align-items: stretch; }
+  .goals-add-btn { margin-left: 0; }
+  .goals-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .goal-card { padding: var(--space-md); }
+  .goals-cat-filter { gap: 4px; }
+  .filter-chip { padding: 5px 10px; font-size: 0.75rem; }
+}

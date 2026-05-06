@@ -1,0 +1,210 @@
+/* ═══════════════════════════════════════════════════
+   HealthPage — Phase 4
+   iPad card grid layout
+═══════════════════════════════════════════════════ */
+
+.h-page { position: relative; }
+
+/* ── Grid layout ─────────────────────────────────── */
+.h-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+/* Row 1: Water (left 55%) + Weight form+stats (right) */
+.h-row-top {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: var(--space-xl);
+  align-items: start;
+}
+
+/* Row 2: Chart (wider) + History */
+.h-row-bottom {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+/* Right column stacks form + stats */
+.h-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* ── Card header ─────────────────────────────────── */
+.h-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+.h-goal-btn {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+  min-height: 30px;
+}
+.h-goal-btn:hover { color: var(--text-primary); border-color: var(--border-hover); }
+
+/* ── Water display ───────────────────────────────── */
+.water-display {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: var(--space-md);
+}
+.water-num {
+  font-family: var(--font-mono);
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--accent-teal);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.water-goal-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* ── Segment bar ─────────────────────────────────── */
+.water-segments {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.water-seg {
+  flex: 1;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  transition: background 0.4s var(--ease);
+}
+.water-seg--filled { background: var(--accent-teal); }
+.water-pct {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--accent-teal);
+  text-align: right;
+  margin: 0 0 8px;
+}
+
+/* ── Quick add buttons ───────────────────────────── */
+.water-quick {
+  display: flex;
+  gap: 6px;
+  margin-top: var(--space-md);
+  flex-wrap: wrap;
+}
+.water-quick-btn {
+  flex: 1;
+  padding: 10px 6px;
+  border: 1px solid rgba(45,212,191,0.3);
+  border-radius: var(--r-md);
+  background: rgba(45,212,191,0.07);
+  color: var(--accent-teal);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+  min-height: 44px;
+  white-space: nowrap;
+}
+.water-quick-btn:hover { background: rgba(45,212,191,0.15); transform: translateY(-1px); }
+.water-quick-btn:active { transform: scale(0.96); }
+
+/* ── Custom water input ──────────────────────────── */
+.water-custom {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+.water-custom-input { flex: 1; }
+.water-custom-add   { flex-shrink: 0; min-height: 48px; background: var(--grad-teal) !important; }
+
+/* ── Weight form ─────────────────────────────────── */
+.weight-form { display: flex; flex-direction: column; gap: var(--space-md); }
+.weight-input {
+  font-family: var(--font-mono) !important;
+  font-size: 1.4rem !important;
+  font-weight: 500 !important;
+  padding-right: 50px !important;
+}
+.weight-submit { width: 100%; background: var(--grad-violet) !important; }
+
+/* ── Weight stats grid ───────────────────────────── */
+.ws-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.ws-cell {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-md);
+}
+.ws-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+.ws-val {
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+}
+.ws-up   { color: var(--accent-rose)  !important; }
+.ws-down { color: var(--accent-green) !important; }
+
+/* ── Weight history ──────────────────────────────── */
+.wh-list { display: flex; flex-direction: column; gap: 2px; }
+.wh-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-xs);
+  border-radius: var(--r-md);
+  transition: background var(--duration) var(--ease);
+}
+.wh-row:hover { background: var(--bg-hover); }
+.wh-row + .wh-row { border-top: 1px solid var(--border); }
+.wh-row:hover .session-del { opacity: 1; }
+
+.wh-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wh-weight {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.wh-note { font-size: 0.75rem; color: var(--text-secondary); }
+.wh-date { font-size: 0.7rem; color: var(--text-muted); }
+
+/* ── Responsive ──────────────────────────────────── */
+@media (max-width: 1023px) {
+  .h-row-top    { grid-template-columns: 1fr; }
+  .h-row-bottom { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .water-num { font-size: 1.8rem; }
+  .ws-grid   { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .water-quick { gap: 4px; }
+  .water-quick-btn { font-size: 0.75rem; padding: 8px 4px; }
+}

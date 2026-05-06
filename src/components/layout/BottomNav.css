@@ -1,0 +1,65 @@
+/* ── Bottom Navigation ──────────────────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+
+  height: calc(var(--bottomnav-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* ── Nav item ───────────────────────────────────────────── */
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: color var(--duration) var(--ease);
+  min-height: 44px;
+  padding: 8px 4px;
+}
+
+.bottom-nav-item:hover {
+  color: var(--text-secondary);
+}
+
+.bottom-nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  transition: all var(--duration) var(--ease);
+}
+
+.bottom-nav-label {
+  line-height: 1;
+}
+
+/* ── Active state ───────────────────────────────────────── */
+.bottom-nav-item--active {
+  color: var(--accent-violet2);
+}
+
+.bottom-nav-item--active .bottom-nav-icon {
+  background: rgba(124,99,255,0.15);
+}

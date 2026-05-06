@@ -1,0 +1,44 @@
+/* ── App Shell ──────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+/* ── Main area ──────────────────────────────────────────── */
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* Offset for sidebar width via transition */
+  transition: margin-left var(--duration) var(--ease);
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* Safe area for notch */
+  padding-bottom: calc(var(--space-xl) + var(--safe-bottom));
+}
+
+/* ── Mobile layout ──────────────────────────────────────── */
+@media (max-width: 767px) {
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .app-main {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .app-content {
+    /* Reserve space for bottom nav + safe area */
+    padding-bottom: calc(var(--bottomnav-height) + var(--safe-bottom) + var(--space-md));
+  }
+}

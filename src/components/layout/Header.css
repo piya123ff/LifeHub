@@ -1,0 +1,173 @@
+/* ── Top Bar ────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 0 var(--space-xl);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding-top: var(--safe-top);
+  height: calc(var(--header-height) + var(--safe-top));
+  flex-shrink: 0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.topbar-menu-btn {
+  flex-shrink: 0;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--dur-normal) var(--ease);
+}
+.topbar-menu-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.05);
+}
+
+.topbar-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.topbar-heading {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.topbar-sub {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  margin: 1px 0 0;
+  line-height: 1;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.topbar-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  padding: 5px 11px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+}
+
+.topbar-icon-btn {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md);
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--dur-normal) var(--ease);
+  flex-shrink: 0;
+}
+.topbar-icon-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+  background: rgba(255,255,255,0.05);
+}
+
+.topbar-avatar {
+  width: 34px; height: 34px;
+  border-radius: var(--r-full);
+  background: var(--grad-violet);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+.topbar-avatar:hover { opacity: 1; }
+
+/* ═══════════════════════════════════════════════════════
+   THEME TOGGLE — Segmented pill redesign
+   Structure: .theme-toggle > .theme-toggle-track > .theme-toggle-thumb
+                            > .theme-toggle-label
+═══════════════════════════════════════════════════════ */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px 4px 5px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  cursor: pointer;
+  transition: all var(--dur-normal) var(--ease);
+  flex-shrink: 0;
+  min-height: 34px;
+}
+.theme-toggle:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-hover);
+}
+.theme-toggle:active { transform: scale(0.96); }
+
+/* Track = the pill container for the thumb/icon */
+.theme-toggle-track {
+  width: 28px; height: 28px;
+  border-radius: var(--r-full);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background var(--dur-normal) var(--ease);
+}
+
+/* Dark mode: moon icon on dim blue bg */
+.theme-toggle--dark .theme-toggle-track {
+  background: rgba(124,99,255,0.18);
+}
+/* Pink mode: blossom icon on pink bg */
+.theme-toggle--pink .theme-toggle-track {
+  background: rgba(219,39,119,0.15);
+}
+
+.theme-toggle-thumb {
+  display: flex; align-items: center; justify-content: center;
+}
+.theme-toggle--dark .theme-toggle-thumb { color: var(--accent-violet2); }
+.theme-toggle--pink .theme-toggle-thumb { color: var(--accent-violet); }
+
+/* Label */
+.theme-toggle-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color var(--dur-normal) var(--ease);
+  letter-spacing: 0.02em;
+}
+.theme-toggle--dark .theme-toggle-label { color: var(--text-secondary); }
+.theme-toggle--pink .theme-toggle-label { color: var(--accent-violet); }
+
+/* Mobile: hide label */
+@media (max-width: 767px) {
+  .theme-toggle { padding: 4px 6px; gap: 0; }
+  .theme-toggle-label { display: none; }
+}
