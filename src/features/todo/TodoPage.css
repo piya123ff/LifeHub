@@ -9,18 +9,21 @@
 /* ── 2-col layout (iPad landscape) ───────────────────── */
 .todo-layout {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: minmax(320px, 380px) 1fr;
   gap: var(--space-xl);
   align-items: start;
 }
 
-/* ── Left panel ───────────────────────────────────────── */
+@media (min-width: 1600px) {
+  .todo-layout { grid-template-columns: 420px 1fr; }
+}
+
+/* ── Left panel — natural flow ──────────────────────────── */
 .todo-form-panel {
-  position: sticky;
-  top: var(--space-md);
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+  min-width: 0;
 }
 
 /* ── Form ─────────────────────────────────────────────── */
@@ -223,7 +226,7 @@
   align-items: flex-start;
   gap: var(--space-md);
   padding: var(--space-md);
-  background: var(--bg-card);
+  background: var(--bg-card-solid);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   transition: all var(--duration) var(--ease);
@@ -370,16 +373,17 @@
 .todo-empty {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  gap: var(--space-sm);
+  gap: var(--space-md);
   padding: var(--space-2xl) var(--space-xl);
+  min-height: 280px;
   text-align: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  background: var(--bg-card-solid);
+  border: 1px dashed var(--border-hover);
+  border-radius: var(--r-xl);
 }
-.todo-empty-icon { font-size: 2.5rem; }
-.todo-empty p    { font-size: 0.95rem; color: var(--text-secondary); margin: 0; font-weight: 500; }
-.todo-empty span { font-size: 0.8rem;  color: var(--text-muted); }
+.todo-empty-icon { font-size: 2.75rem; opacity: 0.7; }
+.todo-empty p    { font-size: 1rem; color: var(--text-secondary); margin: 0; font-weight: 600; }
+.todo-empty span { font-size: 0.82rem;  color: var(--text-muted); line-height: 1.5; }
 
 /* ── Toast ────────────────────────────────────────────── */
 .todo-toast {
@@ -406,7 +410,6 @@
 /* iPad portrait / small tablet */
 @media (max-width: 900px) {
   .todo-layout { grid-template-columns: 1fr; }
-  .todo-form-panel { position: static; }
 }
 
 /* iPhone */

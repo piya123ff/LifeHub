@@ -22,8 +22,10 @@
   }
   .topbar-date { display: none; }
 
-  /* Content */
-  .page-content { padding: var(--space-md) var(--space-sm); }
+  /* Content — give breathing room on mobile */
+  .page-content { padding: var(--space-md); }
+  .app-content > * { padding: var(--space-md); }
+  .page { gap: var(--space-lg); }
 
   /* Grids → single column */
   .grid-2,
@@ -51,9 +53,17 @@
   .tab  { padding: 8px 12px; font-size: 0.8rem; }
 
   /* StatCard compact */
-  .stat-card { padding: var(--space-md); }
-  .stat-card-value { font-size: 1.1rem; }
+  .stat-card { padding: var(--space-md); gap: var(--space-sm); }
+  .stat-card-value { font-size: 1.15rem; }
   .stat-card-icon  { width: 38px; height: 38px; }
+  .stat-card-title { font-size: 0.62rem; }
+
+  /* Card padding on mobile */
+  .card-pad-lg, .card-pad-xl { padding: var(--space-md); }
+
+  /* Inputs more comfy on mobile */
+  .input { padding: 14px 14px; }
+  .field { gap: 6px; }
 
   /* Text sizes */
   .topbar-heading { font-size: 1rem; }

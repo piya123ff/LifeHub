@@ -256,15 +256,16 @@
 /* ═══════════════════════════════════════════════════════════
    FORM FIELDS
    ═══════════════════════════════════════════════════════════ */
-.field { display: flex; flex-direction: column; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 8px; }
 .field-label {
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: 0.01em;
+  color: var(--text-primary);
+  letter-spacing: 0.005em;
+  line-height: 1.3;
 }
-.field-error  { font-size: 0.78rem; color: var(--accent-rose); margin-top: -2px; }
-.field-hint   { font-size: 0.75rem; color: var(--text-muted); }
+.field-error  { font-size: 0.78rem; color: var(--accent-rose); margin-top: 2px; line-height: 1.4; }
+.field-hint   { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; }
 
 .field-wrap            { position: relative; }
 .field-wrap.has-prefix .input { padding-left: 44px; }
@@ -286,12 +287,12 @@
   width: 100%;
   background: var(--bg-elevated);
   border: 1.5px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-md);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 1rem;
-  padding: 13px 16px;
-  min-height: 52px;
+  font-size: 0.95rem;
+  padding: 14px 16px;
+  min-height: 50px;
   outline: none;
   transition: border-color var(--dur-normal) var(--ease),
               box-shadow    var(--dur-normal) var(--ease),
@@ -299,9 +300,19 @@
   -webkit-appearance: none;
   appearance: none;
 }
+/* Remove number input spinners */
+.input[type="number"]::-webkit-outer-spin-button,
+.input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.input:hover:not(:focus):not(:disabled) {
+  border-color: var(--border-hover);
+}
 .input:focus {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 4px rgba(124,99,255,0.1);
+  box-shadow: 0 0 0 4px rgba(124,99,255,0.12);
   background: var(--bg-hover);
 }
 .input-error    { border-color: rgba(244,63,94,0.65) !important; }
@@ -335,6 +346,10 @@
   grid-template-columns: 1fr 1fr 1fr;
   gap: var(--space-md);
 }
+
+/* Stack form fields nicely */
+.form-stack { display: flex; flex-direction: column; gap: var(--space-md); }
+.form-stack-lg { display: flex; flex-direction: column; gap: var(--space-lg); }
 .form-actions {
   display: flex;
   gap: var(--space-sm);

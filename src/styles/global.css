@@ -13,7 +13,7 @@
   --bg-base:      #09091a;
   --bg-surface:   #0e0e20;
   --bg-elevated:  #141428;
-  --bg-card:      #18183000;
+  --bg-card:      #181830;
   --bg-card-solid:#181830;
   --bg-hover:     #1f1f3a;
   --bg-active:    #252546;
@@ -179,13 +179,15 @@ a:hover { color: var(--accent-violet3); }
 strong { font-weight: 600; color: var(--text-primary); }
 
 /* ── Scrollbar ──────────────────────────────────────────── */
-::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar       { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.08);
   border-radius: var(--r-full);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); background-clip: padding-box; }
 
 /* ── Selection ──────────────────────────────────────────── */
 ::selection {
@@ -399,7 +401,7 @@ a:focus:not(:focus-visible) { outline: none; }
   --bg-base:        #fef2f8;
   --bg-surface:     #fff7fb;
   --bg-elevated:    #fce7f3;
-  --bg-card:        rgba(252, 231, 243, 0);
+  --bg-card:        #fff0f7;
   --bg-card-solid:  #fff0f7;
   --bg-hover:       #fce7f3;
   --bg-active:      #fad5e9;
@@ -605,3 +607,60 @@ a:focus:not(:focus-visible) { outline: none; }
     0 8px 32px rgba(219,39,119,0.08),
     inset 0 1px 0 rgba(255,255,255,0.7);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   FINAL POLISH LAYER
+   ═══════════════════════════════════════════════════════════ */
+
+/* Cards get subtle depth */
+.card {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 2px 12px rgba(0,0,0,0.18);
+}
+.card:hover {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 8px 28px rgba(0,0,0,0.32);
+}
+[data-theme="pink"] .card {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 2px 14px rgba(219,39,119,0.06);
+}
+[data-theme="pink"] .card:hover {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset, 0 8px 28px rgba(219,39,119,0.12);
+}
+
+/* Tablet — keep reasonable card padding */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .card-pad-xl { padding: var(--space-xl); }
+}
+
+/* Section spacing — give pages breathing room */
+.page > .section-row { margin-bottom: var(--space-sm); }
+
+/* Form field spacing tweak when inside cards */
+.card .field + .field { margin-top: 0; }
+
+/* Tabs — better active visibility */
+.tab--active {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 1px 4px rgba(0,0,0,0.2);
+}
+
+/* Chips on touch devices keep height consistent */
+.chip { height: 36px; }
+.cat-chip-sm { display: inline-flex; align-items: center; }
+
+/* Better disabled styling */
+.input:disabled, .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Mobile single-col tweaks */
+@media (max-width: 767px) {
+  .card-pad-md { padding: var(--space-md); }
+  .modal-body { gap: var(--space-md); }
+  .week-summary { gap: var(--space-sm); padding-bottom: var(--space-md); }
+  /* Fix overflow on x-axis from rogue elements */
+  .page-content > * { max-width: 100%; }
+}
+
+/* Hide horizontal scroll caused by inner overflow */
+.app-content { overflow-x: hidden; }
+.page-content { max-width: 100%; }
