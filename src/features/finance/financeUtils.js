@@ -1,4 +1,5 @@
 // financeUtils.js — helpers
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../../constants/categories.js'
 
 export const TRANSACTION_TYPES = {
   INCOME: 'income',
@@ -12,7 +13,8 @@ export function getCategoryMeta(id, type) {
     return { id: 'saving', label: 'การออม', emoji: '🎯' }
   }
   const list = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
-  return list.find(c => c.id === id) ?? { id, label: id, emoji: type === 'income' ? '💰' : '📦' }
+  const found = Array.isArray(list) ? list.find(c => c.id === id) : null
+  return found ?? { id: id || 'other', label: id || 'ทั่วไป', emoji: type === 'income' ? '💰' : '📦' }
 }
 
 export function getTransactionTypeBadge(type) {
@@ -32,19 +34,31 @@ export function getTransactionTypeBadge(type) {
 
 export function formatDateTH(isoString) {
   if (!isoString) return ''
-  return new Date(isoString).toLocaleDateString('th-TH', {
-    day: 'numeric', month: 'short', year: 'numeric',
-  })
+  try {
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) return String(isoString)
+    return d.toLocaleDateString('th-TH', {
+      day: 'numeric', month: 'short', year: 'numeric',
+    })
+  } catch {
+    return String(isoString || '')
+  }
 }
 
 export function formatDateTimeTH(isoString) {
   if (!isoString) return ''
-  const d = new Date(isoString)
-  return d.toLocaleDateString('th-TH', {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
+  try {
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) return String(isoString)
+    return d.toLocaleDateString('th-TH', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch {
+    return String(isoString || '')
+  }
 }
+
 
 export function todayISO() {
   return new Date().toISOString().slice(0, 10)

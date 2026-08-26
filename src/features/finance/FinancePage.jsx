@@ -971,28 +971,33 @@ export default function FinancePage() {
 
   /* ── Filtered Transactions ── */
   const filteredHistory = useMemo(() => {
-    return entries.filter(item => {
+    return (entries || []).filter(item => {
+      if (!item) return false
+
       // Month filter
-      if (selectedMonth && item.date.slice(0, 7) !== selectedMonth) {
-        return false
+      if (selectedMonth) {
+        const itemYm = item.date ? String(item.date).slice(0, 7) : ''
+        if (itemYm !== selectedMonth) return false
       }
+
       // Type filter
       if (typeFilter === 'income' && item.type !== 'income') return false
       if (typeFilter === 'expense' && item.type !== 'expense') return false
-      if (typeFilter === 'saving' && !item.type?.startsWith('SAVING_TRANSFER')) return false
+      if (typeFilter === 'saving' && !String(item.type || '').startsWith('SAVING_TRANSFER')) return false
 
       // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
-        const matchName = item.name?.toLowerCase().includes(q)
-        const matchNote = item.note?.toLowerCase().includes(q)
-        const matchCat = item.category?.toLowerCase().includes(q)
+        const matchName = String(item.name || '').toLowerCase().includes(q)
+        const matchNote = String(item.note || '').toLowerCase().includes(q)
+        const matchCat = String(item.category || '').toLowerCase().includes(q)
         if (!matchName && !matchNote && !matchCat) return false
       }
 
       return true
     })
   }, [entries, selectedMonth, typeFilter, searchQuery])
+
 
   /* ── Chart data for Overview ── */
   const chartData = useMemo(() => {
