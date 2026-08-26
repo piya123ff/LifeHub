@@ -1,6 +1,7 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { MENU_ITEMS } from '../../data/menuItems.js'
+import './Sidebar.css'
 
 // SVG icons
 const LogoIcon = () => (

@@ -47,3 +47,32 @@ export const todoService = {
     return { total, completed, pending: total - completed, dueToday }
   },
 }
+
+// Sub-task helpers — sub-tasks stored inside each todo as todo.subTasks = [{id, title, completed}]
+export const subTaskService = {
+  add(todoId, title) {
+    const list = storageGet(STORAGE_KEYS.TODOS, [])
+    const idx  = list.findIndex(t => t.id === todoId)
+    if (idx === -1) return false
+    if (!list[idx].subTasks) list[idx].subTasks = []
+    list[idx].subTasks.push({ id: generateId(), title: title.trim(), completed: false })
+    return storageSet(STORAGE_KEYS.TODOS, list)
+  },
+
+  toggle(todoId, subId) {
+    const list = storageGet(STORAGE_KEYS.TODOS, [])
+    const todo = list.find(t => t.id === todoId)
+    if (!todo?.subTasks) return false
+    const sub = todo.subTasks.find(s => s.id === subId)
+    if (sub) sub.completed = !sub.completed
+    return storageSet(STORAGE_KEYS.TODOS, list)
+  },
+
+  delete(todoId, subId) {
+    const list = storageGet(STORAGE_KEYS.TODOS, [])
+    const todo = list.find(t => t.id === todoId)
+    if (!todo?.subTasks) return false
+    todo.subTasks = todo.subTasks.filter(s => s.id !== subId)
+    return storageSet(STORAGE_KEYS.TODOS, list)
+  },
+}

@@ -1,22 +1,29 @@
-import React, { useState, useRef } from 'react'
-import { backupService } from '../../services/backupService.js'
+import React, { useState, useRef, useCallback } from 'react'
+import { backupService, BACKUP_MANIFEST } from '../../services/backupService.js'
 import { appDataService } from '../../services/appDataService.js'
 import './BackupPage.css'
 
+/* ── Helpers ── */
 function fmtBytes(n) {
   if (n < 1024) return n + ' B'
   if (n < 1048576) return (n / 1024).toFixed(1) + ' KB'
   return (n / 1048576).toFixed(2) + ' MB'
 }
 
-function Toast({ msg, type }) {
-  if (!msg) return null
-  return React.createElement('div', { className: 'backup-toast backup-toast--' + type }, msg)
+/* ── Toast ── */
+function Toast({ flash }) {
+  if (!flash) return null
+  return (
+    <div className={"backup-toast backup-toast--" + flash.type}>
+      {flash.msg}
+    </div>
+  )
 }
 
-function SectionCard({ icon, title, subtitle, children }) {
+/* ── Section Card shell ── */
+function SectionCard({ icon, title, subtitle, accent, children }) {
   return (
-    <div className="backup-card">
+    <div className={"backup-card" + (accent ? " backup-card--" + accent : "")}>
       <div className="backup-card-head">
         <span className="backup-card-icon">{icon}</span>
         <div>
@@ -29,194 +36,36 @@ function SectionCard({ icon, title, subtitle, children }) {
   )
 }
 
-function ExportCard({ onFlash }) {
-  const storageSize = backupService.getStorageSize()
-  const [exporting, setExporting] = useState(false)
-  const now = new Date()
-  const mm = String(now.getMonth() + 1).padStart(2, '0')
-  const dd = String(now.getDate()).padStart(2, '0')
-  const dateStr = now.getFullYear() + '-' + mm + '-' + dd
-
-  function handleExport() {
-    setExporting(true)
-    try {
-      backupService.export()
-      onFlash('Export backup สำเร็จ', 'ok')
-    } catch (e) {
-      onFlash('Export ล้มเหลว: ' + e.message, 'error')
-    } finally {
-      setTimeout(() => setExporting(false), 800)
-    }
-  }
-
-  return (
-    <SectionCard icon="📤" title="Export ข้อมูล" subtitle="บันทึกข้อมูลทั้งหมดเป็นไฟล์ JSON">
-      <div className="backup-info-row">
-        <div className="backup-info-item">
-          <span className="backup-info-label">ขนาดข้อมูล</span>
-          <span className="backup-info-value">{fmtBytes(storageSize)}</span>
-        </div>
-        <div className="backup-info-item">
-          <span className="backup-info-label">ชื่อไฟล์</span>
-          <span className="backup-info-value backup-info-mono">lifehub-backup-{dateStr}.json</span>
-        </div>
-      </div>
-      <div className="backup-covers">
-        <p className="backup-covers-label">ครอบคลุมข้อมูล:</p>
-        <div className="backup-covers-chips">
-          {['💰 การเงิน', '✅ To-Do', '🏋️ Workout', '❤️ สุขภาพ', '🎯 เป้าหมาย'].map(t => (
-            <span key={t} className="backup-chip">{t}</span>
-          ))}
-        </div>
-      </div>
-      <button
-        className="btn btn-primary backup-action-btn"
-        onClick={handleExport}
-        disabled={exporting}
-      >
-        {exporting ? '⏳ กำลัง Export...' : '📥 Download Backup (.json)'}
-      </button>
-    </SectionCard>
-  )
-}
-
-function ImportCard({ onFlash }) {
-  const fileRef = useRef(null)
-  const [preview,   setPreview]   = useState(null)
-  const [fileObj,   setFileObj]   = useState(null)
-  const [importing, setImporting] = useState(false)
-  const [confirm,   setConfirm]   = useState(false)
-  const [error,     setError]     = useState(null)
-
-  function handleFileChange(e) {
-    const file = e.target.files && e.target.files[0]
-    if (!file) return
-    setError(null)
-    setConfirm(false)
-    if (!file.name.endsWith('.json')) {
-      setError('กรุณาเลือกไฟล์ .json เท่านั้น')
-      setPreview(null)
-      setFileObj(null)
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = function(evt) {
-      try {
-        const data = JSON.parse(evt.target.result)
-        const keys = ['finance', 'todos', 'workouts', 'health', 'goals']
-        if (!keys.some(function(k) { return data[k] !== undefined })) {
-          setError('ไฟล์นี้ไม่ใช่ LifeHub backup หรือเสียหาย')
-          setPreview(null)
-          setFileObj(null)
-          return
-        }
-        setPreview({
-          version:    data.version    || 'unknown',
-          exportedAt: data.exportedAt ? new Date(data.exportedAt).toLocaleString('th-TH') : 'ไม่ทราบ',
-          finance:    data.finance    ? data.finance.length  : 0,
-          todos:      data.todos      ? data.todos.length    : 0,
-          workouts:   data.workouts   ? data.workouts.length : 0,
-          health:     data.health     ? data.health.length   : 0,
-          goals:      data.goals      ? data.goals.length    : 0,
-        })
-        setFileObj(file)
-      } catch (_) {
-        setError('ไม่สามารถอ่านไฟล์ได้ — อาจเสียหายหรือไม่ใช่ JSON')
-        setPreview(null)
-        setFileObj(null)
-      }
-    }
-    reader.readAsText(file)
-  }
-
-  function handleImport() {
-    if (!fileObj) return
-    if (!confirm) {
-      setConfirm(true)
-      setTimeout(function() { setConfirm(false) }, 5000)
-      return
-    }
-    setImporting(true)
-    backupService.import(fileObj)
-      .then(function() {
-        onFlash('Import สำเร็จ! กำลังรีโหลด...', 'ok')
-        setPreview(null)
-        setFileObj(null)
-        setConfirm(false)
-        if (fileRef.current) fileRef.current.value = ''
-        setTimeout(function() { window.location.reload() }, 1800)
-      })
-      .catch(function(e) {
-        onFlash('Import ล้มเหลว: ' + e.message, 'error')
-      })
-      .finally(function() {
-        setImporting(false)
-      })
-  }
-
-  return (
-    <SectionCard icon="📥" title="Import ข้อมูล" subtitle="นำไฟล์ backup กลับเข้าแอป — ข้อมูลปัจจุบันจะถูกแทนที่">
-      <label className="backup-file-label">
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".json,application/json"
-          className="backup-file-input"
-          onChange={handleFileChange}
-        />
-        <div className="backup-file-zone">
-          <span className="backup-file-icon">📂</span>
-          <span className="backup-file-text">{fileObj ? fileObj.name : 'กดเลือกไฟล์ .json'}</span>
-          {fileObj && <span className="backup-file-size">{fmtBytes(fileObj.size)}</span>}
-        </div>
-      </label>
-
-      {error && <div className="backup-error">⚠️ {error}</div>}
-
-      {preview && !error && (
-        <div className="backup-preview">
-          <p className="backup-preview-title">📋 ข้อมูลในไฟล์ backup:</p>
-          <div className="backup-preview-grid">
-            <div className="backup-preview-row"><span>🕐 Export เมื่อ</span><strong>{preview.exportedAt}</strong></div>
-            <div className="backup-preview-row"><span>📦 เวอร์ชัน</span><strong>{preview.version}</strong></div>
-            <div className="backup-preview-row"><span>💰 รายการเงิน</span><strong>{preview.finance} รายการ</strong></div>
-            <div className="backup-preview-row"><span>✅ To-Do</span><strong>{preview.todos} รายการ</strong></div>
-            <div className="backup-preview-row"><span>🏋️ Workout</span><strong>{preview.workouts} รายการ</strong></div>
-            <div className="backup-preview-row"><span>❤️ สุขภาพ</span><strong>{preview.health} รายการ</strong></div>
-            <div className="backup-preview-row"><span>🎯 เป้าหมาย</span><strong>{preview.goals} รายการ</strong></div>
-          </div>
-          <div className="backup-warning">
-            ⚠️ การ Import จะ<strong>แทนที่ข้อมูลปัจจุบัน</strong>ทั้งหมด
-          </div>
-          <button
-            className={'btn backup-action-btn ' + (confirm ? 'btn-danger' : 'btn-primary')}
-            onClick={handleImport}
-            disabled={importing}
-          >
-            {importing
-              ? '⏳ กำลัง Import...'
-              : confirm
-                ? '⚠️ ยืนยัน Import — ข้อมูลเดิมจะถูกแทนที่'
-                : '📤 Import ข้อมูลนี้'}
-          </button>
-          {confirm && <p className="backup-confirm-hint">กดอีกครั้งภายใน 5 วินาทีเพื่อยืนยัน</p>}
-        </div>
-      )}
-    </SectionCard>
-  )
-}
-
-function StorageInfoCard() {
+/* ── Current Data Summary ── */
+function CurrentDataCard() {
+  const stats = backupService.getCurrentStats()
   const size  = backupService.getStorageSize()
   const quota = 5 * 1024 * 1024
   const pct   = Math.min(100, Math.round((size / quota) * 100))
+
+  const rows = BACKUP_MANIFEST.filter(m => m.key !== 'settings' && m.key !== 'habit_logs')
+  const getCount = (key) => {
+    const v = stats[key]
+    if (v === null || v === undefined) return '—'
+    return v + (typeof v === 'number' && v !== 1 ? '' : '')
+  }
+
   return (
-    <SectionCard icon="💾" title="พื้นที่จัดเก็บ" subtitle="ข้อมูลเก็บใน localStorage บนอุปกรณ์นี้">
-      <div className="storage-bar-wrap">
+    <SectionCard icon="💾" title="ข้อมูลในอุปกรณ์นี้" subtitle="สรุปข้อมูลทั้งหมดที่บันทึกไว้">
+      <div className="current-stats-grid">
+        {rows.map(m => (
+          <div key={m.key} className="current-stat-item">
+            <span className="current-stat-icon">{m.icon}</span>
+            <span className="current-stat-label">{m.label.replace(/^.{1,2}\s/, '')}</span>
+            <span className="current-stat-count">{getCount(m.key)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="storage-bar-wrap" style={{ marginTop: 12 }}>
         <div className="storage-bar-track">
           <div
-            className={'storage-bar-fill' + (pct > 80 ? ' storage-bar-fill--warn' : '')}
-            style={{ width: pct + '%' }}
+            className={"storage-bar-fill" + (pct > 80 ? " storage-bar-fill--warn" : "")}
+            style={{ width: pct + "%" }}
           />
         </div>
         <span className="storage-pct">{pct}%</span>
@@ -226,50 +75,280 @@ function StorageInfoCard() {
   )
 }
 
-function DangerCard({ onFlash }) {
-  const [confirm, setConfirm] = useState(false)
-  function handleReset() {
-    if (confirm) {
-      appDataService.resetAllData()
-      onFlash('ล้างข้อมูลทั้งหมดแล้ว', 'warn')
-      setConfirm(false)
-      setTimeout(function() { window.location.reload() }, 1500)
-    } else {
-      setConfirm(true)
-      setTimeout(function() { setConfirm(false) }, 5000)
+/* ── Export Card ── */
+function ExportCard({ onFlash }) {
+  const [exporting, setExporting] = useState(false)
+  const now    = new Date()
+  const dateStr = now.toISOString().slice(0, 10)
+
+  function handleExport() {
+    setExporting(true)
+    try {
+      const fname = backupService.export()
+      onFlash("📥 Download สำเร็จ: " + fname, "ok")
+    } catch (e) {
+      onFlash("Export ล้มเหลว: " + e.message, "error")
+    } finally {
+      setTimeout(() => setExporting(false), 800)
     }
   }
+
   return (
-    <SectionCard icon="⚠️" title="โซนอันตราย" subtitle="ล้างข้อมูลทั้งหมดออกจากอุปกรณ์นี้">
-      <p className="backup-danger-desc">
-        จะล้างข้อมูลทั้งหมด — การเงิน, To-Do, Workout, สุขภาพ และเป้าหมาย
-        <br />
-        <strong style={{ color: 'var(--accent-rose)' }}>แนะนำให้ Export backup ก่อนล้างข้อมูล</strong>
-      </p>
+    <SectionCard icon="📤" title="Export Backup" subtitle="บันทึกข้อมูลทั้งหมดเป็นไฟล์ JSON ลงเครื่อง">
+      <div className="backup-info-row">
+        <div className="backup-info-item">
+          <span className="backup-info-label">ชื่อไฟล์</span>
+          <span className="backup-info-mono">lifehub-backup-{dateStr}.json</span>
+        </div>
+      </div>
+      <div className="backup-covers">
+        <p className="backup-covers-label">ครอบคลุมข้อมูลทั้งหมด:</p>
+        <div className="backup-covers-chips">
+          {BACKUP_MANIFEST.map(m => (
+            <span key={m.key} className="backup-chip">{m.label}</span>
+          ))}
+        </div>
+      </div>
       <button
-        onClick={handleReset}
-        className={'btn backup-action-btn ' + (confirm ? 'btn-danger' : 'btn-ghost')}
+        className="btn btn-primary backup-action-btn"
+        onClick={handleExport}
+        disabled={exporting}
       >
-        {confirm ? '⚠️ กดอีกครั้งเพื่อยืนยัน' : '🗑️ ล้างข้อมูลทั้งหมด'}
+        {exporting ? "⏳ กำลัง Export..." : "📥 Download Backup (.json)"}
       </button>
-      {confirm && <p className="backup-confirm-hint">กดภายใน 5 วินาทีเพื่อยืนยัน</p>}
+      <p className="backup-hint">💡 บน iPad: ไฟล์จะบันทึกไปที่แอป Files → Downloads</p>
     </SectionCard>
   )
 }
 
+/* ── Import Card ── */
+function ImportCard({ onFlash }) {
+  const fileRef = useRef(null)
+  const [preview,   setPreview]   = useState(null)   // { stats, warnings, data }
+  const [fileObj,   setFileObj]   = useState(null)
+  const [mode,      setMode]      = useState("replace")
+  const [step,      setStep]      = useState("idle")  // idle | preview | confirm | done
+  const [error,     setError]     = useState(null)
+
+  const reset = useCallback(() => {
+    setPreview(null); setFileObj(null)
+    setStep("idle"); setError(null)
+    if (fileRef.current) fileRef.current.value = ""
+  }, [])
+
+  function handleFileChange(e) {
+    const file = e.target.files && e.target.files[0]
+    if (!file) return
+    setError(null); setStep("idle"); setPreview(null)
+
+    backupService.parseFile(file)
+      .then(({ stats, warnings, data }) => {
+        setPreview({ stats, warnings, data })
+        setFileObj(file)
+        setStep("preview")
+      })
+      .catch(err => {
+        setError(err.message)
+        setFileObj(null)
+      })
+  }
+
+  function handleImport() {
+    if (step === "preview") { setStep("confirm"); return }
+    if (step !== "confirm")  return
+
+    backupService.importData(preview.data, mode)
+    onFlash("✅ Import สำเร็จ! กำลังรีโหลด...", "ok")
+    setStep("done")
+    setTimeout(() => window.location.reload(), 1800)
+  }
+
+  const previewRows = BACKUP_MANIFEST.filter(m => {
+    if (!preview) return false
+    return preview.stats[m.key] !== null && preview.stats[m.key] !== undefined
+  })
+
+  return (
+    <SectionCard icon="📥" title="Import Backup" subtitle="นำไฟล์ backup กลับเข้าแอป">
+
+      {/* File picker */}
+      <label className="backup-file-label">
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".json,application/json"
+          className="backup-file-input"
+          onChange={handleFileChange}
+        />
+        <div className={"backup-file-zone" + (fileObj ? " backup-file-zone--selected" : "")}>
+          <span className="backup-file-icon">{fileObj ? "✅" : "📂"}</span>
+          <span className="backup-file-text">{fileObj ? fileObj.name : "กดเลือกไฟล์ .json"}</span>
+          {fileObj && <span className="backup-file-size">{fmtBytes(fileObj.size)}</span>}
+        </div>
+      </label>
+
+      {error && <div className="backup-error">⚠️ {error}</div>}
+
+      {/* Mode selector */}
+      {step === "preview" && (
+        <div className="import-mode-row">
+          <span className="import-mode-label">โหมด Import:</span>
+          <div className="import-mode-btns">
+            <button
+              className={"import-mode-btn" + (mode === "replace" ? " import-mode-btn--active" : "")}
+              onClick={() => setMode("replace")}
+            >
+              🔄 Replace — แทนที่ทั้งหมด
+            </button>
+            <button
+              className={"import-mode-btn" + (mode === "merge" ? " import-mode-btn--active" : "")}
+              onClick={() => setMode("merge")}
+            >
+              🔀 Merge — รวมกับข้อมูลเดิม
+            </button>
+          </div>
+          <p className="import-mode-desc">
+            {mode === "replace"
+              ? "⚠️ ข้อมูลเดิมทั้งหมดจะถูกแทนที่ด้วยข้อมูลจาก backup"
+              : "✨ รายการที่ไม่มี id ตรงกันจะถูกเพิ่มเข้ามา ข้อมูลเดิมจะถูกเก็บไว้"}
+          </p>
+        </div>
+      )}
+
+      {/* Preview */}
+      {preview && (step === "preview" || step === "confirm") && (
+        <div className={"backup-preview" + (step === "confirm" ? " backup-preview--confirm" : "")}>
+          <p className="backup-preview-title">📋 ข้อมูลในไฟล์ backup:</p>
+          <div className="backup-preview-grid">
+            <div className="backup-preview-row">
+              <span>🕐 Export เมื่อ</span>
+              <strong>{preview.stats.exportedAt}</strong>
+            </div>
+            <div className="backup-preview-row">
+              <span>📦 เวอร์ชัน</span>
+              <strong>{preview.stats.version}</strong>
+            </div>
+            {previewRows.map(m => (
+              <div key={m.key} className="backup-preview-row">
+                <span>{m.label}</span>
+                <strong>
+                  {preview.stats[m.key] !== null
+                    ? preview.stats[m.key] + (m.type === "array" ? " รายการ" : " ค่า")
+                    : "—"}
+                </strong>
+              </div>
+            ))}
+          </div>
+
+          {preview.warnings.length > 0 && (
+            <div className="backup-warnings">
+              {preview.warnings.map((w, i) => (
+                <p key={i} className="backup-warn-item">⚠️ {w}</p>
+              ))}
+            </div>
+          )}
+
+          {step === "confirm" && (
+            <div className="backup-confirm-banner">
+              {mode === "replace"
+                ? "⚠️ ข้อมูลปัจจุบันทั้งหมดจะถูกแทนที่ ยืนยันหรือไม่?"
+                : "🔀 ข้อมูลใหม่จาก backup จะถูก merge เข้ามา ยืนยันหรือไม่?"}
+            </div>
+          )}
+
+          <div className="import-action-row">
+            {step === "confirm" ? (
+              <>
+                <button className="btn btn-ghost import-cancel-btn" onClick={() => setStep("preview")}>
+                  ← กลับ
+                </button>
+                <button className="btn btn-danger import-confirm-btn" onClick={handleImport}>
+                  ✅ ยืนยัน Import
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-ghost import-cancel-btn" onClick={reset}>
+                  ยกเลิก
+                </button>
+                <button className="btn btn-primary import-confirm-btn" onClick={handleImport}>
+                  ต่อไป →
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <p className="backup-hint">💡 บน iPad: กด "เลือกไฟล์" → Files → เลือกไฟล์ .json</p>
+    </SectionCard>
+  )
+}
+
+/* ── Danger Zone ── */
+function DangerCard({ onFlash }) {
+  const [step, setStep] = useState("idle") // idle | confirm1 | confirm2
+
+  function handleReset() {
+    if (step === "idle") {
+      setStep("confirm1")
+      setTimeout(() => setStep("idle"), 6000)
+      return
+    }
+    if (step === "confirm1") {
+      setStep("confirm2")
+      setTimeout(() => setStep("idle"), 6000)
+      return
+    }
+    // confirm2 — do it
+    backupService.clearAll()
+    onFlash("🗑️ ล้างข้อมูลทั้งหมดแล้ว", "warn")
+    setTimeout(() => window.location.reload(), 1500)
+  }
+
+  const label =
+    step === "idle"     ? "🗑️ ล้างข้อมูลทั้งหมด" :
+    step === "confirm1" ? "⚠️ กดอีกครั้งเพื่อยืนยัน (1/2)" :
+                          "🔴 กดเพื่อยืนยันครั้งสุดท้าย (2/2)"
+
+  return (
+    <SectionCard icon="⚠️" title="โซนอันตราย" subtitle="ล้างข้อมูลทั้งหมดออกจากอุปกรณ์นี้" accent="danger">
+      <p className="backup-danger-desc">
+        จะล้างข้อมูลทั้งหมด ได้แก่ การเงิน, To-Do, Workout, สุขภาพ, เป้าหมาย, Habits และ Sleep
+        <br />
+        <strong style={{ color: "var(--accent-rose)" }}>แนะนำ Export backup ก่อนล้าง</strong>
+      </p>
+      {step !== "idle" && (
+        <p className="backup-confirm-hint" style={{ color: "var(--accent-rose)" }}>
+          ต้องกด {step === "confirm1" ? 2 : 1} ครั้งอีก เพื่อยืนยัน — รีเซ็ตใน 6 วินาที
+        </p>
+      )}
+      <button
+        onClick={handleReset}
+        className={"btn backup-action-btn " + (step === "idle" ? "btn-ghost" : "btn-danger")}
+      >
+        {label}
+      </button>
+    </SectionCard>
+  )
+}
+
+/* ── Main Page ── */
 export default function BackupPage() {
   const [flash, setFlash] = useState(null)
+
   function showFlash(msg, type) {
-    setFlash({ msg: msg, type: type || 'ok' })
-    setTimeout(function() { setFlash(null) }, 3000)
+    setFlash({ msg, type: type || "ok" })
+    setTimeout(() => setFlash(null), 3500)
   }
+
   return (
     <div className="backup-page">
-      <Toast msg={flash && flash.msg} type={flash && flash.type} />
+      <Toast flash={flash} />
       <div className="backup-grid">
         <ExportCard      onFlash={showFlash} />
         <ImportCard      onFlash={showFlash} />
-        <StorageInfoCard />
+        <CurrentDataCard />
         <DangerCard      onFlash={showFlash} />
       </div>
     </div>

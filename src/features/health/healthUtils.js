@@ -54,3 +54,30 @@ export function bmiLabel(bmi) {
   if (bmi < 30)   return { label: 'น้ำหนักเกิน',  color: 'var(--accent-amber)'  }
   return               { label: 'อ้วน',           color: 'var(--accent-rose)'   }
 }
+
+/** Calculate sleep duration in minutes (handles crossing midnight) */
+export function calcSleepDuration(bedtime, wakeTime) {
+  if (!bedtime || !wakeTime) return 0
+  const [bh, bm] = bedtime.split(':').map(Number)
+  const [wh, wm] = wakeTime.split(':').map(Number)
+  let bedMins  = bh * 60 + bm
+  let wakeMins = wh * 60 + wm
+  if (wakeMins <= bedMins) wakeMins += 1440 // crosses midnight
+  return wakeMins - bedMins
+}
+
+/** Format minutes → "7ชม. 30นาที" */
+export function formatDuration(mins) {
+  if (!mins && mins !== 0) return '—'
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h === 0) return `${m}นาที`
+  if (m === 0) return `${h}ชม.`
+  return `${h}ชม. ${m}นาที`
+}
+
+/** Sleep quality label */
+export function sleepQualityLabel(q) {
+  const map = { 1: 'แย่มาก', 2: 'แย่', 3: 'ปานกลาง', 4: 'ดี', 5: 'ดีมาก' }
+  return map[q] || ''
+}

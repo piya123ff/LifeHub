@@ -60,9 +60,18 @@ export const MENU_ITEMS = [
     </svg>`,
   },
   {
+    path:   '/habits',
+    label:  'Habits',
+    accent: 'amber',
+    icon: `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+      <path d="M8 12l3 3 5-5"/>
+    </svg>`,
+  },
+  {
     path:   '/backup',
     label:  'Backup',
-    accent: 'amber',
+    accent: 'blue',
     icon: `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
       <polyline points="17 8 12 3 7 8"/>
@@ -71,5 +80,11 @@ export const MENU_ITEMS = [
   },
 ]
 
-// Bottom nav shows only first 5 items (no backup)
-export const BOTTOM_NAV_ITEMS = MENU_ITEMS.slice(0, 5)
+// Bottom nav: Dashboard, Finance, Todo, Workout, Habits
+export const BOTTOM_NAV_ITEMS = [
+  MENU_ITEMS[0],
+  MENU_ITEMS[1],
+  MENU_ITEMS[2],
+  MENU_ITEMS[3],
+  MENU_ITEMS[6],
+]

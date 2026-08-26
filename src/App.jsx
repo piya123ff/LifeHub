@@ -9,6 +9,7 @@ import TodoPage       from './features/todo/TodoPage.jsx'
 import WorkoutPage    from './features/workout/WorkoutPage.jsx'
 import HealthPage     from './features/health/HealthPage.jsx'
 import GoalsPage      from './features/goals/GoalsPage.jsx'
+import HabitsPage     from './features/habits/HabitsPage.jsx'
 import BackupPage     from './features/backup/BackupPage.jsx'
 
 function AppInit({ children }) {
@@ -16,7 +17,6 @@ function AppInit({ children }) {
   return children
 }
 
-// basename matches vite.config.js base: '/lifehub/'
 const BASE = import.meta.env.BASE_URL
 
 export default function App() {
@@ -33,6 +33,7 @@ export default function App() {
               <Route path="workout"   element={<WorkoutPage />} />
               <Route path="health"    element={<HealthPage />} />
               <Route path="goals"     element={<GoalsPage />} />
+              <Route path="habits"    element={<HabitsPage />} />
               <Route path="backup"    element={<BackupPage />} />
             </Route>
           </Routes>

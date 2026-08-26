@@ -3,12 +3,13 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { healthService }   from '../../services/healthService.js'
+import { healthService, sleepService } from '../../services/healthService.js'
 import { appDataService }  from '../../services/appDataService.js'
 import {
   WATER_QUICK_ML, DEFAULT_WATER_GOAL_ML,
   formatWater, waterProgress, weightTrend,
   todayISO, formatDateTH, validateWeight,
+  calcSleepDuration, formatDuration,
 } from './healthUtils.js'
 import './HealthPage.css'
 
@@ -359,6 +360,160 @@ function GoalModal({ open, goalMl, goalWeight, onClose, onSave }) {
   )
 }
 
+/* ── Sleep Tracker ── */
+function SleepSection({ logs, summary, onAdd, onDelete }) {
+  const [form, setForm] = useState({ date: todayISO(), bedtime: '23:00', wakeTime: '07:00', quality: '3', note: '' })
+  const [confirmId, setConfirmId] = useState(null)
+  const [error, setError] = useState('')
+
+  const duration = calcSleepDuration(form.bedtime, form.wakeTime)
+
+  function field(k, v) { setForm(f => ({ ...f, [k]: v })); setError('') }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.bedtime || !form.wakeTime) { setError('กรุณาระบุเวลานอนและตื่น'); return }
+    if (duration <= 0 || duration > 1440) { setError('เวลาไม่ถูกต้อง'); return }
+    onAdd({ date: form.date, bedtime: form.bedtime, wakeTime: form.wakeTime, durationMin: duration, quality: parseInt(form.quality), note: form.note.trim() || null })
+    setForm({ date: todayISO(), bedtime: '23:00', wakeTime: '07:00', quality: '3', note: '' })
+    setError('')
+  }
+
+  function handleDel(id) {
+    if (confirmId === id) { onDelete(id); setConfirmId(null) }
+    else { setConfirmId(id); setTimeout(() => setConfirmId(null), 3000) }
+  }
+
+  const QUALITY_LABELS = ['', '😴 แย่มาก', '😐 แย่', '😊 ปานกลาง', '😁 ดี', '🌟 ดีมาก']
+  const qualityColor = q => q >= 4 ? 'var(--accent-green)' : q === 3 ? 'var(--accent-amber)' : 'var(--accent-rose)'
+
+  return (
+    <div className="sleep-section">
+      {/* Stats bar */}
+      <div className="sleep-stats-bar card card-pad-lg">
+        <p className="section-label" style={{ marginBottom: 12 }}>😴 Sleep Tracker</p>
+        <div className="sleep-stats-row">
+          <div className="sleep-stat">
+            <span className="sleep-stat-num">{summary.avg != null ? formatDuration(summary.avg) : '—'}</span>
+            <span className="sleep-stat-lbl">เฉลี่ย 7 วัน</span>
+          </div>
+          <div className="sleep-stat-div" />
+          <div className="sleep-stat">
+            <span className="sleep-stat-num" style={{ color: 'var(--accent-green)' }}>{summary.best != null ? formatDuration(summary.best) : '—'}</span>
+            <span className="sleep-stat-lbl">ดีที่สุด</span>
+          </div>
+          <div className="sleep-stat-div" />
+          <div className="sleep-stat">
+            <span className="sleep-stat-num" style={{ color: 'var(--accent-rose)' }}>{summary.worst != null ? formatDuration(summary.worst) : '—'}</span>
+            <span className="sleep-stat-lbl">น้อยที่สุด</span>
+          </div>
+          <div className="sleep-stat-div" />
+          <div className="sleep-stat">
+            <span className="sleep-stat-num">{summary.count}</span>
+            <span className="sleep-stat-lbl">วันที่บันทึก</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="sleep-body">
+        {/* Form */}
+        <div className="card card-pad-lg sleep-form-card">
+          <p className="section-label" style={{ marginBottom: 14 }}>🌙 บันทึกการนอน</p>
+          <form onSubmit={handleSubmit} noValidate className="sleep-form">
+            <div className="field">
+              <label className="field-label">วันที่</label>
+              <input className="input" type="date" value={form.date} max={todayISO()} onChange={e => field('date', e.target.value)} />
+            </div>
+            <div className="form-row">
+              <div className="field">
+                <label className="field-label">⏰ เข้านอน</label>
+                <input className="input" type="time" value={form.bedtime} onChange={e => field('bedtime', e.target.value)} />
+              </div>
+              <div className="field">
+                <label className="field-label">☀️ ตื่นนอน</label>
+                <input className="input" type="time" value={form.wakeTime} onChange={e => field('wakeTime', e.target.value)} />
+              </div>
+            </div>
+
+            {/* Duration preview */}
+            {duration > 0 && (
+              <div className="sleep-duration-preview">
+                <span className="sleep-dur-icon">💤</span>
+                <span className="sleep-dur-val">{formatDuration(duration)}</span>
+                <span className="sleep-dur-lbl">ชั่วโมงนอน</span>
+                <div className="sleep-dur-bar-wrap">
+                  <div className="sleep-dur-bar" style={{ width: `${Math.min(100, (duration / 480) * 100)}%`, background: duration >= 420 ? 'var(--accent-green)' : duration >= 300 ? 'var(--accent-amber)' : 'var(--accent-rose)' }} />
+                </div>
+              </div>
+            )}
+
+            <div className="field">
+              <label className="field-label">คุณภาพการนอน</label>
+              <div className="sleep-quality-row">
+                {[1,2,3,4,5].map(q => (
+                  <button key={q} type="button"
+                    className={`sleep-quality-btn ${form.quality == q ? 'sleep-quality-btn--active' : ''}`}
+                    style={{ '--qc': qualityColor(q) }}
+                    onClick={() => field('quality', String(q))}
+                    title={QUALITY_LABELS[q]}
+                  >{QUALITY_LABELS[q]}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="field">
+              <label className="field-label">หมายเหตุ (ไม่บังคับ)</label>
+              <input className="input" type="text" placeholder="เช่น นอนหลับยาก, ตื่นกลางคืน" value={form.note} onChange={e => field('note', e.target.value)} />
+            </div>
+
+            {error && <p className="field-error">{error}</p>}
+            <button type="submit" className="btn btn-primary">+ บันทึกการนอน</button>
+          </form>
+        </div>
+
+        {/* History */}
+        <div className="card card-pad-lg sleep-history-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <p className="section-label">📋 ประวัติการนอน</p>
+            <span className="badge">{logs.length} รายการ</span>
+          </div>
+          {logs.length === 0 ? (
+            <div className="wo-empty"><span>🌙</span><p>ยังไม่มีข้อมูลการนอน</p></div>
+          ) : (
+            <div className="sleep-log-list">
+              {logs.slice(0, 14).map(e => (
+                <div key={e.id} className="sleep-log-row">
+                  <div className="sleep-log-info">
+                    <span className="sleep-log-date">{formatDateTH(e.date)}</span>
+                    <span className="sleep-log-time">{e.bedtime} → {e.wakeTime}</span>
+                    {e.note && <span className="sleep-log-note">{e.note}</span>}
+                  </div>
+                  <div className="sleep-log-right">
+                    <div className="sleep-log-dur-bar-wrap">
+                      <div className="sleep-log-dur-bar" style={{ width: `${Math.min(100, (e.durationMin / 480) * 100)}%`, background: e.durationMin >= 420 ? 'var(--accent-green)' : e.durationMin >= 300 ? 'var(--accent-amber)' : 'var(--accent-rose)' }} />
+                    </div>
+                    <span className="sleep-log-dur">{formatDuration(e.durationMin)}</span>
+                    {e.quality && <span className="sleep-log-qual" title={QUALITY_LABELS[e.quality]}>{QUALITY_LABELS[e.quality]}</span>}
+                    <button
+                      className={`session-del ${confirmId === e.id ? 'session-del--confirm' : ''}`}
+                      onClick={() => handleDel(e.id)}
+                    >
+                      {confirmId === e.id
+                        ? <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
+                        : <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                      }
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Main Page ── */
 export default function HealthPage() {
   const settings = appDataService.getSettings()
@@ -369,11 +524,15 @@ export default function HealthPage() {
   const [latest,     setLatest]     = useState(() => healthService.getLatestWeight())
   const [goalOpen,   setGoalOpen]   = useState(false)
   const [flash,      setFlash]      = useState(null)
+  const [sleepLogs,  setSleepLogs]  = useState(() => sleepService.getHistory(14))
+  const [sleepSum,   setSleepSum]   = useState(() => sleepService.getSummary(7))
 
   const reload = useCallback(() => {
     setTodayMl(healthService.getTodayWater())
     setHistory(healthService.getWeightHistory(30))
     setLatest(healthService.getLatestWeight())
+    setSleepLogs(sleepService.getHistory(14))
+    setSleepSum(sleepService.getSummary(7))
   }, [])
 
   function showFlash(msg, type = 'ok') {
@@ -403,6 +562,20 @@ export default function HealthPage() {
     setGoalWeight(kg)
     appDataService.updateSettings({ waterGoalMl: ml, goalWeight: kg })
     showFlash('✅ บันทึกเป้าหมายแล้ว')
+  }
+
+  function handleAddSleep(entry) {
+    sleepService.add(entry)
+    setSleepLogs(sleepService.getHistory(14))
+    setSleepSum(sleepService.getSummary(7))
+    showFlash('✅ บันทึกการนอนแล้ว')
+  }
+
+  function handleDeleteSleep(id) {
+    sleepService.delete(id)
+    setSleepLogs(sleepService.getHistory(14))
+    setSleepSum(sleepService.getSummary(7))
+    showFlash('🗑️ ลบรายการแล้ว', 'warn')
   }
 
   return (
@@ -438,6 +611,14 @@ export default function HealthPage() {
           <WeightChart history={history} />
           <WeightHistory history={history} onDelete={handleDeleteWeight} />
         </div>
+
+        {/* ── Row 3: Sleep Tracker ── */}
+        <SleepSection
+          logs={sleepLogs}
+          summary={sleepSum}
+          onAdd={handleAddSleep}
+          onDelete={handleDeleteSleep}
+        />
 
       </div>
     </div>

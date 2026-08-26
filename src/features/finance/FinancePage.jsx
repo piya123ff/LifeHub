@@ -1,564 +1,35 @@
-import React, { useState, useCallback, useMemo } from 'react'
-import { financeService }  from '../../services/financeService.js'
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../../constants/categories.js'
-import { formatMoney }     from '../../utils/formatMoney.js'
+import React, { useState, useMemo, useCallback } from 'react'
 import {
-  getCategoryMeta, formatDateTH, todayISO,
-  getMonthOptions, filterByMonth, computeSummary, validateEntry,
-  computeSplitBill, validateSplitBill,
-  computeParticipantSummary, computeNetSettlements,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from 'recharts'
+import { financeService } from '../../services/financeService.js'
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../../constants/categories.js'
+import { formatMoney } from '../../utils/formatMoney.js'
+import {
+  formatDateTH,
+  formatDateTimeTH,
+  todayISO,
+  getMonthOptions,
+  getCategoryMeta,
+  getTransactionTypeBadge,
 } from './financeUtils.js'
 import './FinancePage.css'
 
-/* ─────────────────────────────────────────────────────────
-   Shared micro-components
-───────────────────────────────────────────────────────── */
+const SUGGESTED_ICONS = [
+  '🎯', '💻', '🎓', '✈️', '📱', '🚗', '💰', '🎮',
+  '🏠', '🛡️', '💍', '🎁', '👶', '🚴', '🏥', '⭐',
+]
 
-function TypeToggle({ value, onChange }) {
-  return (
-    <div className="type-toggle" role="group" aria-label="ประเภทรายการ">
-      <button type="button"
-        className={"type-btn " + (value === 'income' ? 'active-income' : '')}
-        onClick={() => onChange('income')} aria-pressed={value === 'income'}>
-        <span>💚</span> รายรับ
-      </button>
-      <button type="button"
-        className={"type-btn " + (value === 'expense' ? 'active-expense' : '')}
-        onClick={() => onChange('expense')} aria-pressed={value === 'expense'}>
-        <span>🔴</span> รายจ่าย
-      </button>
-    </div>
-  )
-}
+const QUICK_AMOUNTS = [50, 100, 500, 1000, 5000]
 
-function CategoryGrid({ type, selected, onSelect, error }) {
-  const cats = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
-  return (
-    <div className="field">
-      <label className="field-label">หมวดหมู่</label>
-      <div className="category-grid" role="listbox" aria-label="เลือกหมวดหมู่">
-        {cats.map(c => (
-          <button key={c.id} type="button" role="option"
-            aria-selected={selected === c.id}
-            className={"cat-chip " + (selected === c.id ? 'cat-chip--active' : '') + " " + (selected === c.id && type === 'income' ? 'income-active' : '') + " " + (selected === c.id && type === 'expense' ? 'expense-active' : '')}
-            onClick={() => onSelect(c.id)}>
-            <span className="cat-chip-emoji">{c.emoji}</span>
-            <span className="cat-chip-label">{c.label}</span>
-          </button>
-        ))}
-      </div>
-      {error && <p className="field-error">{error}</p>}
-    </div>
-  )
-}
-
-function SummaryCard({ label, value, accent, icon }) {
-  return (
-    <div className={"fin-summary-card accent-" + accent}>
-      <div className="fin-summary-icon">{icon}</div>
-      <div>
-        <p className="fin-summary-label">{label}</p>
-        <p className="fin-summary-value">{value}</p>
-      </div>
-    </div>
-  )
-}
-
-function TxRow({ entry, onDelete }) {
-  const meta = getCategoryMeta(entry.category, entry.type)
-  const isIncome = entry.type === 'income'
-  const displayName = entry.name || meta.label
-  return (
-    <div className="tx-row">
-      <div className="tx-cat-icon">{meta.emoji}</div>
-      <div className="tx-info">
-        <span className="tx-name">{displayName}</span>
-        <div className="tx-meta-row">
-          <span className="tx-cat-badge">{meta.label}</span>
-          <span className="tx-date">{formatDateTH(entry.date)}</span>
-        </div>
-        {entry.note && <span className="tx-note">{entry.note}</span>}
-      </div>
-      <div className="tx-right">
-        <span className={"tx-amount " + (isIncome ? 'tx-income' : 'tx-expense')}>
-          {isIncome ? '+' : '-'}{formatMoney(entry.amount)}
-        </span>
-        <button className="tx-delete" onClick={() => onDelete(entry.id)}
-          aria-label={"ลบรายการ " + displayName} title="ลบรายการ">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/* ─────────────────────────────────────────────────────────
-   Mode-toggle tabs
-───────────────────────────────────────────────────────── */
-
-function FinanceModeTabs({ mode, onChange }) {
-  return (
-    <div className="fin-mode-tabs">
-      <button type="button"
-        className={"fin-mode-tab " + (mode === 'finance' ? 'fin-mode-tab--active' : '')}
-        onClick={() => onChange('finance')}>
-        💰 รายรับ / รายจ่าย
-      </button>
-      <button type="button"
-        className={"fin-mode-tab " + (mode === 'split' ? 'fin-mode-tab--active' : '')}
-        onClick={() => onChange('split')}>
-        🤝 หารบิล
-      </button>
-    </div>
-  )
-}
-
-/* ─────────────────────────────────────────────────────────
-   Split Bill Form
-───────────────────────────────────────────────────────── */
-
-const EMPTY_SPLIT = {
-  title: '',
-  totalAmount: '',
-  participants: [{ id: 'p1', name: '' }, { id: 'p2', name: '' }],
-  paidBy: 'p1',
-  date: todayISO(),
-  note: '',
-}
-
-function SplitBillForm({ onSaved, showFlash }) {
-  const [form,   setForm]   = useState(EMPTY_SPLIT)
-  const [errors, setErrors] = useState({})
-  const [saving, setSaving] = useState(false)
-
-  const preview = useMemo(() => {
-    const total = parseFloat(String(form.totalAmount).replace(/,/g, ''))
-    if (!total || form.participants.length < 2 || form.participants.some(p => !p.name.trim())) return null
-    return computeSplitBill(total, form.participants.filter(p => p.name.trim()), form.paidBy)
-  }, [form.totalAmount, form.participants, form.paidBy])
-
-  function setField(key, val) {
-    setForm(f => ({ ...f, [key]: val }))
-    if (errors[key]) setErrors(e => ({ ...e, [key]: undefined }))
-  }
-
-  function addParticipant() {
-    const id = 'p' + Date.now()
-    setForm(f => ({ ...f, participants: [...f.participants, { id, name: '' }] }))
-  }
-
-  function removeParticipant(id) {
-    setForm(f => {
-      const next = f.participants.filter(p => p.id !== id)
-      return { ...f, participants: next, paidBy: next.find(p => p.id === f.paidBy) ? f.paidBy : next[0]?.id ?? '' }
-    })
-  }
-
-  function setParticipantName(id, name) {
-    setForm(f => ({
-      ...f,
-      participants: f.participants.map(p => p.id === id ? { ...p, name } : p),
-    }))
-    if (errors.participants) setErrors(e => ({ ...e, participants: undefined }))
-  }
-
-  function handleSubmit(e) {
-    e.preventDefault()
-    const validParticipants = form.participants.filter(p => p.name.trim())
-    const errs = validateSplitBill({ title: form.title, totalAmount: form.totalAmount, participants: validParticipants })
-    if (Object.keys(errs).length) { setErrors(errs); return }
-
-    setSaving(true)
-    const total = parseFloat(String(form.totalAmount).replace(/,/g, ''))
-    const { amountPerPerson, settlements } = computeSplitBill(total, validParticipants, form.paidBy)
-    financeService.addSplitBill({
-      title:           form.title.trim(),
-      totalAmount:     total,
-      participants:    validParticipants,
-      paidBy:          form.paidBy,
-      date:            new Date(form.date).toISOString(),
-      note:            form.note.trim(),
-      amountPerPerson,
-      settlements,
-    })
-    setForm(EMPTY_SPLIT)
-    setErrors({})
-    setSaving(false)
-    showFlash('✅ บันทึกบิลแล้ว')
-    onSaved()
-  }
-
-  const validParticipants = form.participants.filter(p => p.name.trim())
-
-  return (
-    <div className="card card-pad-lg fin-form-card">
-      <h2 className="fin-form-title">🤝 หารบิล</h2>
-      <form onSubmit={handleSubmit} noValidate className="fin-form">
-
-        <div className="field">
-          <label className="field-label" htmlFor="sb-title">ชื่อรายการ</label>
-          <input id="sb-title"
-            className={"input " + (errors.title ? 'input-error' : '')}
-            type="text"
-            placeholder="เช่น ค่าอาหาร, ค่าแท็กซี่..."
-            value={form.title}
-            onChange={e => setField('title', e.target.value)}
-            autoComplete="off" />
-          {errors.title && <p className="field-error">{errors.title}</p>}
-        </div>
-
-        <div className="field">
-          <label className="field-label" htmlFor="sb-amount">ยอดรวม (บาท)</label>
-          <div className="field-wrap has-prefix">
-            <span className="field-prefix fin-baht">฿</span>
-            <input id="sb-amount"
-              className={"input fin-amount-input " + (errors.totalAmount ? 'input-error' : '')}
-              type="number" inputMode="decimal" min="0" step="0.01" placeholder="0"
-              value={form.totalAmount}
-              onChange={e => setField('totalAmount', e.target.value)}
-              autoComplete="off" />
-          </div>
-          {errors.totalAmount && <p className="field-error">{errors.totalAmount}</p>}
-        </div>
-
-        <div className="field">
-          <label className="field-label">ผู้เข้าร่วม ({form.participants.length} คน)</label>
-          <div className="sb-participants">
-            {form.participants.map((p, i) => (
-              <div key={p.id} className="sb-participant-row">
-                <span className="sb-participant-num">{i + 1}</span>
-                <input className="input sb-participant-input" type="text"
-                  placeholder={"ชื่อคนที่ " + (i + 1)}
-                  value={p.name}
-                  onChange={e => setParticipantName(p.id, e.target.value)}
-                  autoComplete="off" />
-                {form.participants.length > 2 && (
-                  <button type="button" className="sb-remove-btn"
-                    onClick={() => removeParticipant(p.id)} title="ลบ">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <line x1="18" y1="6" x2="6" y2="18"/>
-                      <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                  </button>
-                )}
-              </div>
-            ))}
-            <button type="button" className="sb-add-participant-btn" onClick={addParticipant}>
-              + เพิ่มคน
-            </button>
-          </div>
-          {errors.participants && <p className="field-error">{errors.participants}</p>}
-        </div>
-
-        <div className="field">
-          <label className="field-label" htmlFor="sb-paid-by">ใครจ่ายก่อน</label>
-          <select id="sb-paid-by" className="input" value={form.paidBy}
-            onChange={e => setField('paidBy', e.target.value)}>
-            {form.participants.filter(p => p.name.trim()).map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-            {validParticipants.length === 0 && (
-              <option value="">— ระบุชื่อก่อน —</option>
-            )}
-          </select>
-        </div>
-
-        <div className="field">
-          <label className="field-label" htmlFor="sb-date">วันที่</label>
-          <div className="field-wrap">
-            <input id="sb-date" className="input" type="date"
-              value={form.date} max={todayISO()}
-              onChange={e => setField('date', e.target.value)} />
-          </div>
-        </div>
-
-        <div className="field">
-          <label className="field-label" htmlFor="sb-note">หมายเหตุ (ไม่บังคับ)</label>
-          <textarea id="sb-note" className="input textarea"
-            placeholder="เช่น มื้อค่ำวันเกิด..."
-            value={form.note} rows={2}
-            onChange={e => setField('note', e.target.value)} />
-        </div>
-
-        {preview && (
-          <div className="sb-preview">
-            <p className="sb-preview-title">📊 ตัวอย่างการหาร</p>
-            <p className="sb-preview-per">คนละ <strong>{formatMoney(preview.amountPerPerson)}</strong> บาท</p>
-            <div className="sb-preview-settlements">
-              {preview.settlements.map((s, i) => (
-                <p key={i} className="sb-settle-line">
-                  <span className="sb-from">{s.from}</span>
-                  <span className="sb-arrow">→</span>
-                  <span className="sb-to">{s.to}</span>
-                  <span className="sb-settle-amount">{formatMoney(s.amount)}</span>
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <button type="submit" disabled={saving}
-          className="btn btn-primary btn-size-lg fin-submit sb-submit-btn">
-          {saving ? '⏳ กำลังบันทึก...' : '🤝 บันทึกบิล'}
-        </button>
-      </form>
-    </div>
-  )
-}
-
-/* ─────────────────────────────────────────────────────────
-   Split Bill History
-───────────────────────────────────────────────────────── */
-
-function SplitBillHistory({ bills, onReload, showFlash, onAddToFinance }) {
-  const [expanded,      setExpanded]      = useState(null)
-  const [deleteConfirm, setDeleteConfirm] = useState(null)
-
-  function toggleExpand(id) { setExpanded(e => e === id ? null : id) }
-
-  function handleSettle(id) {
-    financeService.settleSplitBill(id)
-    onReload()
-    showFlash('✅ ทำเครื่องหมายชำระแล้ว')
-  }
-
-  function handleDelete(id) {
-    if (deleteConfirm === id) {
-      financeService.deleteSplitBill(id)
-      onReload()
-      setDeleteConfirm(null)
-      showFlash('🗑️ ลบบิลแล้ว', false)
-    } else {
-      setDeleteConfirm(id)
-      setTimeout(() => setDeleteConfirm(null), 3000)
-    }
-  }
-
-  function handleAddToFinance(bill) {
-    financeService.add({
-      type:     'expense',
-      amount:   bill.amountPerPerson,
-      category: 'food',
-      name:     'หารบิล: ' + bill.title,
-      note:     '[หารบิล] ' + bill.title,
-      date:     bill.date,
-    })
-    financeService.markAddedToFinance(bill.id)
-    onReload()
-    onAddToFinance()
-    showFlash('✅ เพิ่มในรายจ่ายแล้ว')
-  }
-
-  if (bills.length === 0) {
-    return (
-      <div className="fin-empty">
-        <span className="fin-empty-icon">🤝</span>
-        <p>ยังไม่มีบิลที่บันทึกไว้</p>
-        <span>เพิ่มบิลด้านซ้ายเพื่อเริ่มต้น</span>
-      </div>
-    )
-  }
-
-  return (
-    <div className="sb-history-list">
-      {bills.map(bill => (
-        <div key={bill.id} className={"sb-bill-card " + (bill.isSettled ? 'sb-bill-card--settled' : '')}>
-          <div className="sb-bill-header" onClick={() => toggleExpand(bill.id)} role="button"
-            tabIndex={0} onKeyDown={e => e.key === 'Enter' && toggleExpand(bill.id)}>
-            <div className="sb-bill-meta">
-              <span className="sb-bill-icon">{bill.isSettled ? '✅' : '🤝'}</span>
-              <div>
-                <p className="sb-bill-title">{bill.title}</p>
-                <p className="sb-bill-date">{formatDateTH(bill.date)} · {bill.participants.length} คน</p>
-              </div>
-            </div>
-            <div className="sb-bill-right">
-              <div className="sb-bill-amounts">
-                <p className="sb-bill-total">฿{formatMoney(bill.totalAmount)}</p>
-                <p className="sb-bill-per">คนละ ฿{formatMoney(bill.amountPerPerson)}</p>
-              </div>
-              <svg className={"sb-chevron " + (expanded === bill.id ? 'sb-chevron--open' : '')}
-                width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </div>
-          </div>
-
-          {expanded === bill.id && (
-            <div className="sb-bill-detail">
-              <p className="sb-detail-label">การโอนเงิน</p>
-              <div className="sb-preview-settlements">
-                {bill.settlements.map((s, i) => (
-                  <p key={i} className="sb-settle-line">
-                    <span className="sb-from">{s.from}</span>
-                    <span className="sb-arrow">→</span>
-                    <span className="sb-to">{s.to}</span>
-                    <span className="sb-settle-amount">{formatMoney(s.amount)}</span>
-                  </p>
-                ))}
-              </div>
-
-              <p className="sb-detail-label">ผู้เข้าร่วม</p>
-              <div className="sb-participants-chips">
-                {bill.participants.map(p => (
-                  <span key={p.id} className={"sb-name-chip " + (p.id === bill.paidBy ? 'sb-name-chip--payer' : '')}>
-                    {p.name}{p.id === bill.paidBy ? ' (จ่ายแล้ว)' : ''}
-                  </span>
-                ))}
-              </div>
-
-              {bill.note && <p className="sb-bill-note">{bill.note}</p>}
-
-              <div className="sb-bill-actions">
-                {!bill.isSettled && (
-                  <button type="button" className="btn btn-ghost btn-size-sm sb-action-btn"
-                    onClick={() => handleSettle(bill.id)}>
-                    ✅ ชำระแล้ว
-                  </button>
-                )}
-                {!bill.addedToFinance && (
-                  <button type="button" className="btn btn-ghost btn-size-sm sb-action-btn"
-                    onClick={() => handleAddToFinance(bill)}>
-                    💳 เพิ่มในรายจ่าย
-                  </button>
-                )}
-                {bill.addedToFinance && (
-                  <span className="sb-added-badge">💳 อยู่ในรายจ่ายแล้ว</span>
-                )}
-                <button type="button"
-                  className={"btn btn-size-sm sb-action-btn " + (deleteConfirm === bill.id ? 'btn-danger' : 'btn-ghost')}
-                  onClick={() => handleDelete(bill.id)}>
-                  {deleteConfirm === bill.id ? 'ยืนยันลบ?' : '🗑️ ลบ'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-
-/* ─────────────────────────────────────────────────────────
-   Split Bill Participant Summary
-───────────────────────────────────────────────────────── */
-
-function SplitBillSummary({ bills, onSettleChange }) {
-  const [settled, setSettled] = React.useState(() => financeService.getNetSettled())
-
-  const participants = React.useMemo(() => computeParticipantSummary(bills), [bills])
-  const settlements  = React.useMemo(() => computeNetSettlements(bills), [bills])
-
-  function handleToggle(key) {
-    const current = settled[key]?.isSettled
-    if (current) {
-      financeService.unmarkNetSettled(key)
-    } else {
-      financeService.markNetSettled(key)
-    }
-    setSettled(financeService.getNetSettled())
-    if (onSettleChange) onSettleChange()
-  }
-
-  if (bills.length === 0) {
-    return (
-      <div className="sbs-empty">
-        <span className="sbs-empty-icon">📊</span>
-        <p>ยังไม่มีข้อมูลผู้เข้าร่วม</p>
-        <span>เพิ่มบิลก่อนเพื่อดูสรุปรายบุคคล</span>
-      </div>
-    )
-  }
-
-  return (
-    <div className="sbs-wrapper">
-      {/* Participant cards */}
-      <div className="sbs-section">
-        <p className="section-label sbs-section-label">👤 ยอดรวมรายบุคคล</p>
-        <div className="sbs-person-grid">
-          {participants.map(p => {
-            const isPositive = p.netBalance > 0
-            const isNeutral  = Math.abs(p.netBalance) < 0.01
-            return (
-              <div key={p.name} className="sbs-person-card">
-                <div className="sbs-person-avatar">{p.name.slice(0, 1).toUpperCase()}</div>
-                <p className="sbs-person-name">{p.name}</p>
-                <div className="sbs-person-stats">
-                  <div className="sbs-stat">
-                    <span className="sbs-stat-label">จ่ายแล้ว</span>
-                    <span className="sbs-stat-val sbs-stat-paid">฿{formatMoney(p.paidTotal)}</span>
-                  </div>
-                  <div className="sbs-stat">
-                    <span className="sbs-stat-label">ที่ต้องจ่าย</span>
-                    <span className="sbs-stat-val sbs-stat-owes">฿{formatMoney(p.owesTotal)}</span>
-                  </div>
-                  <div className="sbs-stat">
-                    <span className="sbs-stat-label">รอรับคืน</span>
-                    <span className="sbs-stat-val sbs-stat-owed">฿{formatMoney(p.owedTotal)}</span>
-                  </div>
-                </div>
-                <div className={"sbs-net-badge " + (isNeutral ? 'sbs-net-zero' : isPositive ? 'sbs-net-pos' : 'sbs-net-neg')}>
-                  {isNeutral ? '⚖️ สมดุล' : isPositive ? ('▲ +฿' + formatMoney(p.netBalance)) : ('▼ -฿' + formatMoney(Math.abs(p.netBalance)))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Net settlements */}
-      {settlements.length > 0 && (
-        <div className="sbs-section">
-          <p className="section-label sbs-section-label">💸 ยอดสุทธิที่ต้องโอน</p>
-          <div className="sbs-settle-list">
-            {settlements.map(s => {
-              const isDone = settled[s.key]?.isSettled
-              return (
-                <div key={s.key} className={"sbs-settle-row " + (isDone ? 'sbs-settle-row--done' : '')}>
-                  <div className="sbs-settle-people">
-                    <span className="sbs-settle-from">{s.from}</span>
-                    <span className="sbs-settle-arrow">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                        <polyline points="12 5 19 12 12 19"/>
-                      </svg>
-                    </span>
-                    <span className="sbs-settle-to">{s.to}</span>
-                  </div>
-                  <div className="sbs-settle-right">
-                    <span className="sbs-settle-amount">฿{formatMoney(s.amount)}</span>
-                    <span className={"sbs-settle-badge " + (isDone ? 'sbs-badge-done' : 'sbs-badge-pending')}>
-                      {isDone ? '✓ รับแล้ว' : 'รอโอน'}
-                    </span>
-                    <button type="button"
-                      className={"sbs-settle-btn " + (isDone ? 'sbs-btn-undo' : 'sbs-btn-mark')}
-                      onClick={() => handleToggle(s.key)}>
-                      {isDone ? 'เลิกทำ' : '✓ ได้รับแล้ว'}
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ─────────────────────────────────────────────────────────
-   Main Page
-───────────────────────────────────────────────────────── */
-
-const EMPTY_FORM = {
-  type: 'expense',
+const emptyTransaction = {
+  type: 'income',
   name: '',
   amount: '',
   category: '',
@@ -566,255 +37,1633 @@ const EMPTY_FORM = {
   note: '',
 }
 
-export default function FinancePage() {
-  const [pageMode, setPageMode] = useState('finance')
+const emptyGoal = {
+  name: '',
+  targetAmount: '',
+  initialAmount: '',
+  icon: '🎯',
+  targetDate: '',
+  note: '',
+}
 
-  const [form,   setForm]   = useState(EMPTY_FORM)
-  const [errors, setErrors] = useState({})
-  const [saving, setSaving] = useState(false)
-  const [flash,  setFlash]  = useState(null)
+function parseNumber(value) {
+  const n = parseFloat(String(value).replace(/,/g, ''))
+  return isNaN(n) ? 0 : n
+}
 
-  const monthOptions = useMemo(() => getMonthOptions(12), [])
-  const currentMonth = monthOptions[0].value
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
-  const [allEntries,    setAllEntries]     = useState(() => financeService.getAll())
-  const [deleteConfirm, setDeleteConfirm]  = useState(null)
+function isPositiveAmount(value) {
+  const n = parseNumber(value)
+  return Number.isFinite(n) && n > 0
+}
 
-  const [splitBills, setSplitBills] = useState(() => financeService.getSplitBills())
-
-  const filtered = useMemo(() => filterByMonth(allEntries, selectedMonth), [allEntries, selectedMonth])
-  const summary  = useMemo(() => computeSummary(filtered), [filtered])
-
-  const reload      = useCallback(() => setAllEntries(financeService.getAll()), [])
-  const reloadSplit = useCallback(() => setSplitBills(financeService.getSplitBills()), [])
-
-  function field(key, val) {
-    setForm(f => ({ ...f, [key]: val }))
-    if (errors[key]) setErrors(e => ({ ...e, [key]: undefined }))
-  }
-
-  function showFlash(msg, ok = true) {
-    setFlash({ msg, ok })
-    setTimeout(() => setFlash(null), 2200)
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    const errs = validateEntry(form)
-    if (Object.keys(errs).length) { setErrors(errs); return }
-
-    setSaving(true)
-    const amount = parseFloat(String(form.amount).replace(/,/g, ''))
-    financeService.add({
-      type:     form.type,
-      name:     form.name.trim(),
-      amount,
-      category: form.category,
-      note:     form.note.trim(),
-      date:     new Date(form.date).toISOString(),
-    })
-    reload()
-    setForm({ ...EMPTY_FORM, type: form.type })
-    setErrors({})
-    setSaving(false)
-    showFlash(form.type === 'income' ? '✅ บันทึกรายรับแล้ว' : '✅ บันทึกรายจ่ายแล้ว')
-  }
-
-  function handleDelete(id) {
-    if (deleteConfirm === id) {
-      financeService.delete(id)
-      reload()
-      setDeleteConfirm(null)
-      showFlash('🗑️ ลบรายการแล้ว', false)
-    } else {
-      setDeleteConfirm(id)
-      setTimeout(() => setDeleteConfirm(null), 3000)
-    }
-  }
-
+/* ── Generic Modal Dialog ── */
+function ModalDialog({ title, subtitle, children, onClose, maxWidth = '540px' }) {
   return (
-    <div className="fin-page">
+    <div className="fin-modal-backdrop" onMouseDown={onClose}>
+      <section
+        className="fin-modal-card card"
+        style={{ maxWidth }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onMouseDown={e => e.stopPropagation()}
+      >
+        <header className="fin-modal-header">
+          <div>
+            <h2 className="fin-modal-title">{title}</h2>
+            {subtitle && <p className="fin-modal-subtitle">{subtitle}</p>}
+          </div>
+          <button className="fin-modal-close" onClick={onClose} aria-label="ปิด">
+            ✕
+          </button>
+        </header>
+        <div className="fin-modal-body">{children}</div>
+      </section>
+    </div>
+  )
+}
 
-      {flash && (
-        <div className={"fin-toast " + (flash.ok ? 'fin-toast--ok' : 'fin-toast--warn')}>
-          {flash.msg}
-        </div>
-      )}
-
-      {deleteConfirm && (
-        <div className="fin-confirm-bar">
-          <span>กดปุ่มลบอีกครั้งเพื่อยืนยันการลบรายการนี้</span>
-        </div>
-      )}
-
-      <FinanceModeTabs mode={pageMode} onChange={setPageMode} />
-
-      <div className="fin-layout">
-
-        {/* LEFT PANEL */}
-        <aside className="fin-form-panel">
-          {pageMode === 'finance' ? (
-            <div className="card card-pad-lg fin-form-card">
-              <h2 className="fin-form-title">
-                {form.type === 'income' ? '💚 เพิ่มรายรับ' : '🔴 เพิ่มรายจ่าย'}
-              </h2>
-              <form onSubmit={handleSubmit} noValidate className="fin-form">
-
-                <TypeToggle value={form.type}
-                  onChange={v => { field('type', v); field('category', ''); field('name', '') }} />
-
-                {/* ── ชื่อรายการ — บังคับกรอกก่อน ── */}
-                <div className="field">
-                  <label className="field-label" htmlFor="fin-name">
-                    {form.type === 'income' ? '📝 รับค่าอะไร?' : '📝 จ่ายค่าอะไร?'}
-                    <span className="field-required">*</span>
-                  </label>
-                  <input id="fin-name"
-                    className={"input fin-name-input " + (errors.name ? 'input-error' : '')}
-                    type="text"
-                    placeholder={form.type === 'income'
-                      ? 'เช่น เงินเดือน, ค่าจ้างงาน, โบนัส...'
-                      : 'เช่น ค่าอาหาร, ค่าน้ำมัน, ค่าเช่า...'}
-                    value={form.name}
-                    onChange={e => field('name', e.target.value)}
-                    autoComplete="off"
-                    autoFocus />
-                  {errors.name && <p className="field-error">{errors.name}</p>}
-                </div>
-
-                {/* Amount */}
-                <div className="field">
-                  <label className="field-label" htmlFor="fin-amount">จำนวนเงิน (บาท)</label>
-                  <div className="field-wrap has-prefix">
-                    <span className="field-prefix fin-baht">฿</span>
-                    <input id="fin-amount"
-                      className={"input fin-amount-input " + (errors.amount ? 'input-error' : '')}
-                      type="number" inputMode="decimal" min="0" step="0.01" placeholder="0"
-                      value={form.amount} onChange={e => field('amount', e.target.value)}
-                      autoComplete="off" />
-                  </div>
-                  {errors.amount && <p className="field-error">{errors.amount}</p>}
-                </div>
-
-                <div className="quick-amounts">
-                  {[100, 200, 500, 1000, 5000].map(n => (
-                    <button key={n} type="button" className="quick-btn"
-                      onClick={() => field('amount', String(n))}>
-                      ฿{n >= 1000 ? n / 1000 + 'K' : n}
-                    </button>
-                  ))}
-                </div>
-
-                <CategoryGrid type={form.type} selected={form.category}
-                  onSelect={v => field('category', v)} error={errors.category} />
-
-                <div className="field">
-                  <label className="field-label" htmlFor="fin-date">วันที่</label>
-                  <div className="field-wrap">
-                    <input id="fin-date"
-                      className={"input " + (errors.date ? 'input-error' : '')}
-                      type="date" value={form.date} max={todayISO()}
-                      onChange={e => field('date', e.target.value)} />
-                  </div>
-                  {errors.date && <p className="field-error">{errors.date}</p>}
-                </div>
-
-                <div className="field">
-                  <label className="field-label" htmlFor="fin-note">หมายเหตุ (ไม่บังคับ)</label>
-                  <textarea id="fin-note" className="input textarea"
-                    placeholder="เพิ่มเติม เช่น รายละเอียด, ชื่อร้าน..."
-                    value={form.note} rows={2}
-                    onChange={e => field('note', e.target.value)} />
-                </div>
-
-                <button type="submit" disabled={saving}
-                  className={"btn btn-primary btn-size-lg fin-submit " + (form.type === 'expense' ? 'btn-expense' : 'btn-income')}>
-                  {saving ? '⏳ กำลังบันทึก...' : form.type === 'income' ? '+ บันทึกรายรับ' : '+ บันทึกรายจ่าย'}
-                </button>
-              </form>
-            </div>
-          ) : (
-            <SplitBillForm onSaved={reloadSplit} showFlash={showFlash} />
-          )}
-        </aside>
-
-        {/* RIGHT PANEL */}
-        <section className="fin-right-panel">
-          {pageMode === 'finance' ? (
-            <>
-              <div className="fin-month-bar">
-                <span className="fin-month-label">📅 เดือน</span>
-                <select className="input fin-month-select"
-                  value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
-                  {monthOptions.map(m => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="fin-summary-grid">
-                <SummaryCard label="รายรับ" value={formatMoney(summary.income)} accent="green"
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>} />
-                <SummaryCard label="รายจ่าย" value={formatMoney(summary.expense)} accent="rose"
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>} />
-                <SummaryCard
-                  label={summary.balance >= 0 ? 'คงเหลือ ✓' : 'คงเหลือ ⚠'}
-                  value={formatMoney(summary.balance)}
-                  accent={summary.balance >= 0 ? 'violet' : 'amber'}
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>} />
-              </div>
-
-              <div className="card card-pad-lg fin-list-card">
-                <div className="fin-list-header">
-                  <p className="section-label">รายการทั้งหมด</p>
-                  <span className="badge">{filtered.length} รายการ</span>
-                </div>
-                {filtered.length === 0 ? (
-                  <div className="fin-empty">
-                    <span className="fin-empty-icon">💸</span>
-                    <p>ยังไม่มีรายการในเดือนนี้</p>
-                    <span>เพิ่มรายรับหรือรายจ่ายด้านซ้าย</span>
-                  </div>
-                ) : (
-                  <div className="fin-tx-list">
-                    {filtered.map(entry => (
-                      <TxRow key={entry.id} entry={entry} onDelete={handleDelete} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="fin-summary-grid sb-stats-grid">
-                <SummaryCard label="บิลทั้งหมด" value={splitBills.length + " บิล"} accent="violet"
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="17" x2="13" y2="17"/></svg>} />
-                <SummaryCard label="ชำระแล้ว" value={splitBills.filter(b => b.isSettled).length + " บิล"} accent="green"
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>} />
-                <SummaryCard label="รอชำระ" value={splitBills.filter(b => !b.isSettled).length + " บิล"} accent="amber"
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>} />
-              </div>
-
-              <div className="card card-pad-lg sbs-summary-card">
-                <SplitBillSummary bills={splitBills} onSettleChange={reloadSplit} />
-              </div>
-
-              <div className="card card-pad-lg fin-list-card">
-                <div className="fin-list-header">
-                  <p className="section-label">ประวัติการหารบิล</p>
-                  <span className="badge">{splitBills.length} บิล</span>
-                </div>
-                <SplitBillHistory
-                  bills={splitBills}
-                  onReload={reloadSplit}
-                  showFlash={showFlash}
-                  onAddToFinance={() => { reload() }}
-                />
-              </div>
-            </>
-          )}
-        </section>
+/* ── Top Stat Card ── */
+function StatCard({ icon, label, value, subtext, accent = 'violet' }) {
+  return (
+    <div className={`fin-stat-card accent-${accent}`}>
+      <div className="fin-stat-icon">{icon}</div>
+      <div className="fin-stat-content">
+        <span className="fin-stat-label">{label}</span>
+        <span className="fin-stat-value">{formatMoney(value)}</span>
+        {subtext && <span className="fin-stat-subtext">{subtext}</span>}
       </div>
     </div>
   )
 }
+
+/* ── Action Picker Modal ── */
+function ActionPickerModal({ onSelect, onClose }) {
+  return (
+    <ModalDialog
+      title="บันทึกรายการทางการเงิน"
+      subtitle="เลือกประเภทรายการที่คุณต้องการทำ"
+      onClose={onClose}
+    >
+      <div className="fin-action-grid">
+        <button
+          type="button"
+          className="fin-action-choice fin-action-choice--income"
+          onClick={() => onSelect('income')}
+        >
+          <span className="fin-action-icon">🟢</span>
+          <div className="fin-action-text">
+            <strong>เพิ่มรายรับ</strong>
+            <span>เงินเดือน, รายได้พิเศษ, ผู้ปกครองให้</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          className="fin-action-choice fin-action-choice--expense"
+          onClick={() => onSelect('expense')}
+        >
+          <span className="fin-action-icon">🔴</span>
+          <div className="fin-action-text">
+            <strong>เพิ่มรายจ่าย</strong>
+            <span>ค่าอาหาร, เดินทาง, ซื้อของ, บิลต่างๆ</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          className="fin-action-choice fin-action-choice--allocate"
+          onClick={() => onSelect('allocate')}
+        >
+          <span className="fin-action-icon">🎯</span>
+          <div className="fin-action-text">
+            <strong>แบ่งเงินเก็บออม</strong>
+            <span>ย้ายเงินจาก "เงินที่ใช้ได้" เข้าเป้าหมายการออม</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          className="fin-action-choice fin-action-choice--withdraw"
+          onClick={() => onSelect('withdraw')}
+        >
+          <span className="fin-action-icon">↔️</span>
+          <div className="fin-action-text">
+            <strong>โยกเงินจากเงินออม</strong>
+            <span>นำเงินที่ออมไว้กลับมาเป็น "เงินที่ใช้ได้"</span>
+          </div>
+        </button>
+      </div>
+    </ModalDialog>
+  )
+}
+
+/* ── Income & Expense Form Modal ── */
+function IncomeExpenseFormModal({ type, onSave, onClose }) {
+  const [form, setForm] = useState({ ...emptyTransaction, type })
+  const [error, setError] = useState('')
+  const isIncome = type === 'income'
+  const categories = isIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
+
+  const setField = (key, value) => {
+    setForm(prev => ({ ...prev, [key]: value }))
+    if (error) setError('')
+  }
+
+  function handleQuickAmount(amt) {
+    const current = parseNumber(form.amount)
+    setField('amount', String(current + amt))
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.name.trim()) return setError('กรุณาระบุชื่อหรือรายละเอียดรายการ')
+    if (!isPositiveAmount(form.amount)) return setError('กรุณาระบุจำนวนเงินที่ถูกต้อง (มากกว่า 0)')
+    if (!form.category) return setError('กรุณาเลือกหมวดหมู่')
+    if (!form.date) return setError('กรุณาระบุวันที่')
+
+    onSave({
+      type,
+      name: form.name.trim(),
+      amount: parseNumber(form.amount),
+      category: form.category,
+      date: new Date(form.date).toISOString(),
+      note: form.note.trim(),
+    })
+  }
+
+  return (
+    <ModalDialog
+      title={isIncome ? '🟢 เพิ่มรายรับ' : '🔴 เพิ่มรายจ่าย'}
+      subtitle={isIncome ? 'บันทึกเงินที่ได้รับเข้าสู่กระเป๋า' : 'บันทึกเงินที่จ่ายจริงออกจากระบบ'}
+      onClose={onClose}
+    >
+      <form className="fin-modal-form" onSubmit={handleSubmit}>
+        <div className="fin-field">
+          <label className="fin-label">
+            รายละเอียดรายการ <span className="field-required">*</span>
+          </label>
+          <input
+            className="input"
+            placeholder={isIncome ? 'เช่น เงินเดือน, เงินพิเศษ' : 'เช่น ข้าวมันไก่, ค่าเดินทาง'}
+            value={form.name}
+            onChange={e => setField('name', e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">
+            จำนวนเงิน (บาท) <span className="field-required">*</span>
+          </label>
+          <div className="fin-input-wrapper">
+            <span className="fin-input-prefix">฿</span>
+            <input
+              className="input fin-amount-field"
+              type="number"
+              min="0"
+              step="any"
+              placeholder="0.00"
+              value={form.amount}
+              onChange={e => setField('amount', e.target.value)}
+            />
+          </div>
+          <div className="fin-quick-row">
+            {QUICK_AMOUNTS.map(amt => (
+              <button
+                key={amt}
+                type="button"
+                className="fin-quick-pill"
+                onClick={() => handleQuickAmount(amt)}
+              >
+                +{amt.toLocaleString('th-TH')}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">
+            หมวดหมู่ <span className="field-required">*</span>
+          </label>
+          <div className="fin-cat-picker-grid">
+            {categories.map(cat => {
+              const isSelected = form.category === cat.id
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  className={`fin-cat-chip ${isSelected ? 'fin-cat-chip--selected' : ''} ${
+                    isSelected ? (isIncome ? 'cat-chip-income' : 'cat-chip-expense') : ''
+                  }`}
+                  onClick={() => setField('category', cat.id)}
+                >
+                  <span className="fin-cat-emoji">{cat.emoji}</span>
+                  <span className="fin-cat-name">{cat.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="fin-field-row">
+          <div className="fin-field">
+            <label className="fin-label">
+              วันที่ <span className="field-required">*</span>
+            </label>
+            <input
+              className="input"
+              type="date"
+              max={todayISO()}
+              value={form.date}
+              onChange={e => setField('date', e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">หมายเหตุ (ไม่บังคับ)</label>
+          <textarea
+            className="input textarea"
+            rows="2"
+            placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
+            value={form.note}
+            onChange={e => setField('note', e.target.value)}
+          />
+        </div>
+
+        {error && <div className="fin-form-error">{error}</div>}
+
+        <div className="fin-form-footer">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            ยกเลิก
+          </button>
+          <button
+            type="submit"
+            className={`btn btn-primary fin-submit-btn ${
+              isIncome ? 'btn-income' : 'btn-expense'
+            }`}
+          >
+            {isIncome ? 'บันทึกรายรับ' : 'บันทึกรายจ่าย'}
+          </button>
+        </div>
+      </form>
+    </ModalDialog>
+  )
+}
+
+/* ── Allocate to Savings Modal ── */
+function AllocateSavingsModal({ goals, availableBalance, initialGoalId, onSave, onClose, onCreateGoal }) {
+  const [goalId, setGoalId] = useState(initialGoalId || goals[0]?.id || '')
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [date, setDate] = useState(todayISO())
+  const [error, setError] = useState('')
+
+  const selectedGoal = goals.find(g => g.id === goalId)
+  const maxAvailable = Math.max(0, availableBalance)
+
+  function handleQuickSet(val) {
+    setAmount(String(val))
+    if (error) setError('')
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!goalId || !selectedGoal) return setError('กรุณาเลือกเป้าหมายการออม')
+    if (!isPositiveAmount(amount)) return setError('กรุณาระบุจำนวนเงินที่ต้องการแบ่งออม')
+    const val = parseNumber(amount)
+    if (val > maxAvailable) {
+      return setError(`จำนวนเงินไม่เพียงพอ คุณสามารถแบ่งได้สูงสุด ${formatMoney(maxAvailable)}`)
+    }
+
+    onSave(goalId, val, note.trim(), new Date(date).toISOString())
+  }
+
+  if (!goals.length) {
+    return (
+      <ModalDialog
+        title="🎯 แบ่งเงินเก็บออม"
+        subtitle="จัดสรรเงินจากเงินที่ใช้ได้ เข้าสู่เป้าหมายการออม"
+        onClose={onClose}
+      >
+        <div className="fin-empty-modal">
+          <span className="fin-empty-modal-icon">🎯</span>
+          <h3>ยังไม่มีเป้าหมายการออม</h3>
+          <p>สร้างเป้าหมายการออมก่อน เพื่อเริ่มแบ่งเงินเก็บ</p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              onClose()
+              onCreateGoal()
+            }}
+          >
+            + สร้างเป้าหมายการออม
+          </button>
+        </div>
+      </ModalDialog>
+    )
+  }
+
+  return (
+    <ModalDialog
+      title="🎯 แบ่งเงินเก็บออม"
+      subtitle="ย้ายเงินจาก 'เงินที่ใช้ได้' ไปเก็บไว้ในเป้าหมาย (ไม่ถือเป็นรายจ่าย)"
+      onClose={onClose}
+    >
+      <form className="fin-modal-form" onSubmit={handleSubmit}>
+        <div className="fin-balance-banner fin-balance-banner--available">
+          <div className="fin-balance-banner-item">
+            <span className="banner-label">💳 เงินที่ใช้ได้ขณะนี้</span>
+            <strong className="banner-value">{formatMoney(maxAvailable)}</strong>
+          </div>
+          {selectedGoal && (
+            <div className="fin-balance-banner-item text-right">
+              <span className="banner-label">ยอดเก็บปัจจุบัน ({selectedGoal.name})</span>
+              <strong className="banner-value">{formatMoney(selectedGoal.savedAmount || 0)}</strong>
+            </div>
+          )}
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">
+            เลือกเป้าหมายการออม <span className="field-required">*</span>
+          </label>
+          <select
+            className="input"
+            value={goalId}
+            onChange={e => {
+              setGoalId(e.target.value)
+              if (error) setError('')
+            }}
+          >
+            {goals.map(g => (
+              <option key={g.id} value={g.id}>
+                {g.icon || '🎯'} {g.name} (เก็บแล้ว {formatMoney(g.savedAmount || 0)} / {formatMoney(g.targetAmount || 0)})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">
+            จำนวนเงินที่ต้องการแบ่งไปออม <span className="field-required">*</span>
+          </label>
+          <div className="fin-input-wrapper">
+            <span className="fin-input-prefix">฿</span>
+            <input
+              className="input fin-amount-field"
+              type="number"
+              min="0"
+              max={maxAvailable}
+              step="any"
+              placeholder="0.00"
+              value={amount}
+              onChange={e => {
+                setAmount(e.target.value)
+                if (error) setError('')
+              }}
+              autoFocus
+            />
+          </div>
+          <div className="fin-quick-row">
+            <button type="button" className="fin-quick-pill" onClick={() => handleQuickSet(500)}>
+              ฿500
+            </button>
+            <button type="button" className="fin-quick-pill" onClick={() => handleQuickSet(1000)}>
+              ฿1,000
+            </button>
+            <button type="button" className="fin-quick-pill" onClick={() => handleQuickSet(2000)}>
+              ฿2,000
+            </button>
+            {maxAvailable > 0 && (
+              <button
+                type="button"
+                className="fin-quick-pill fin-quick-pill--max"
+                onClick={() => handleQuickSet(maxAvailable)}
+              >
+                ทั้งหมด (100%)
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">วันที่</label>
+          <input
+            className="input"
+            type="date"
+            max={todayISO()}
+            value={date}
+            onChange={e => setDate(e.target.value)}
+          />
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">หมายเหตุ (ไม่บังคับ)</label>
+          <input
+            className="input"
+            placeholder="เช่น แบ่งจากเงินเดือนก้อนแรก"
+            value={note}
+            onChange={e => setNote(e.target.value)}
+          />
+        </div>
+
+        {error && <div className="fin-form-error">{error}</div>}
+
+        <div className="fin-form-footer">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            ยกเลิก
+          </button>
+          <button type="submit" className="btn btn-primary fin-submit-btn">
+            ยืนยันแบ่งเงินออม
+          </button>
+        </div>
+      </form>
+    </ModalDialog>
+  )
+}
+
+/* ── Withdraw from Savings Modal ── */
+function WithdrawSavingsModal({ goals, initialGoalId, onSave, onClose }) {
+  const [goalId, setGoalId] = useState(initialGoalId || goals[0]?.id || '')
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [date, setDate] = useState(todayISO())
+  const [error, setError] = useState('')
+
+  const selectedGoal = goals.find(g => g.id === goalId)
+  const maxInGoal = Math.max(0, Number(selectedGoal?.savedAmount || 0))
+
+  function handleQuickSet(val) {
+    setAmount(String(val))
+    if (error) setError('')
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!goalId || !selectedGoal) return setError('กรุณาเลือกเป้าหมายการออม')
+    if (!isPositiveAmount(amount)) return setError('กรุณาระบุจำนวนเงินที่ต้องการโยกกลับ')
+    const val = parseNumber(amount)
+    if (val > maxInGoal) {
+      return setError(`ยอดเงินในเป้าหมายไม่เพียงพอ คุณสามารถโยกเงินได้สูงสุด ${formatMoney(maxInGoal)}`)
+    }
+
+    onSave(goalId, val, note.trim(), new Date(date).toISOString())
+  }
+
+  if (!goals.length) {
+    return (
+      <ModalDialog
+        title="↔️ โยกเงินจากเงินออม"
+        subtitle="นำเงินที่ออมไว้กลับมาเป็นเงินที่ใช้ได้"
+        onClose={onClose}
+      >
+        <div className="fin-empty-modal">
+          <span className="fin-empty-modal-icon">🎯</span>
+          <h3>ยังไม่มีเป้าหมายการออม</h3>
+          <p>ไม่มีเงินออมในระบบที่จะโยกกลับ</p>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            ปิด
+          </button>
+        </div>
+      </ModalDialog>
+    )
+  }
+
+  return (
+    <ModalDialog
+      title="↔️ โยกเงินจากเงินออม"
+      subtitle="นำเงินที่ออมไว้กลับมาเป็น 'เงินที่ใช้ได้' (ไม่ถือเป็นรายรับใหม่)"
+      onClose={onClose}
+    >
+      <form className="fin-modal-form" onSubmit={handleSubmit}>
+        <div className="fin-balance-banner fin-balance-banner--savings">
+          <div className="fin-balance-banner-item">
+            <span className="banner-label">🎯 เงินออมในเป้าหมาย ({selectedGoal?.name})</span>
+            <strong className="banner-value">{formatMoney(maxInGoal)}</strong>
+          </div>
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">
+            เลือกเป้าหมายการออม <span className="field-required">*</span>
+          </label>
+          <select
+            className="input"
+            value={goalId}
+            onChange={e => {
+              setGoalId(e.target.value)
+              if (error) setError('')
+            }}
+          >
+            {goals.map(g => (
+              <option key={g.id} value={g.id}>
+                {g.icon || '🎯'} {g.name} (มีเงินออม {formatMoney(g.savedAmount || 0)})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">
+            จำนวนเงินที่ต้องการโยกกลับมาใช้ <span className="field-required">*</span>
+          </label>
+          <div className="fin-input-wrapper">
+            <span className="fin-input-prefix">฿</span>
+            <input
+              className="input fin-amount-field"
+              type="number"
+              min="0"
+              max={maxInGoal}
+              step="any"
+              placeholder="0.00"
+              value={amount}
+              onChange={e => {
+                setAmount(e.target.value)
+                if (error) setError('')
+              }}
+              autoFocus
+            />
+          </div>
+          <div className="fin-quick-row">
+            <button type="button" className="fin-quick-pill" onClick={() => handleQuickSet(500)}>
+              ฿500
+            </button>
+            <button type="button" className="fin-quick-pill" onClick={() => handleQuickSet(1000)}>
+              ฿1,000
+            </button>
+            {maxInGoal > 0 && (
+              <button
+                type="button"
+                className="fin-quick-pill fin-quick-pill--max"
+                onClick={() => handleQuickSet(maxInGoal)}
+              >
+                ทั้งหมด (100%)
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">วันที่</label>
+          <input
+            className="input"
+            type="date"
+            max={todayISO()}
+            value={date}
+            onChange={e => setDate(e.target.value)}
+          />
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">หมายเหตุ (ไม่บังคับ)</label>
+          <input
+            className="input"
+            placeholder="เช่น จำเป็นต้องนำมาจ่ายค่าซ่อมด่วน"
+            value={note}
+            onChange={e => setNote(e.target.value)}
+          />
+        </div>
+
+        {error && <div className="fin-form-error">{error}</div>}
+
+        <div className="fin-form-footer">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            ยกเลิก
+          </button>
+          <button type="submit" className="btn btn-primary fin-submit-btn">
+            ยืนยันโยกเงินกลับ
+          </button>
+        </div>
+      </form>
+    </ModalDialog>
+  )
+}
+
+/* ── Create / Edit Savings Goal Modal ── */
+function GoalFormModal({ goal, availableBalance, onSave, onClose }) {
+  const isEditing = Boolean(goal?.id)
+  const [form, setForm] = useState(() => {
+    if (goal) {
+      return {
+        name: goal.name || '',
+        targetAmount: String(goal.targetAmount || ''),
+        initialAmount: '',
+        icon: goal.icon || '🎯',
+        targetDate: goal.targetDate || '',
+        note: goal.note || '',
+      }
+    }
+    return emptyGoal
+  })
+  const [error, setError] = useState('')
+
+  const setField = (key, value) => {
+    setForm(prev => ({ ...prev, [key]: value }))
+    if (error) setError('')
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.name.trim()) return setError('กรุณาระบุชื่อเป้าหมายการออม')
+    if (!isPositiveAmount(form.targetAmount)) return setError('กรุณาระบุยอดเป้าหมายที่ถูกต้อง')
+
+    const targetVal = parseNumber(form.targetAmount)
+    const initialVal = form.initialAmount ? parseNumber(form.initialAmount) : 0
+
+    if (!isEditing && initialVal > 0) {
+      if (initialVal > availableBalance) {
+        return setError(`ยอดเริ่มต้นสูงสุดไม่เกินเงินที่ใช้ได้ (${formatMoney(availableBalance)})`)
+      }
+    }
+
+    onSave({
+      name: form.name.trim(),
+      targetAmount: targetVal,
+      initialAmount: isEditing ? undefined : initialVal,
+      icon: form.icon || '🎯',
+      targetDate: form.targetDate || '',
+      note: form.note.trim(),
+    })
+  }
+
+  return (
+    <ModalDialog
+      title={isEditing ? '✏️ แก้ไขเป้าหมายการออม' : '+ สร้างเป้าหมายการออม'}
+      subtitle={isEditing ? 'แก้ไขข้อมูลเป้าหมายของคุณ' : 'ตั้งเป้าหมายและเริ่มจัดสรรเงินเพื่อสิ่งที่คุณต้องการ'}
+      onClose={onClose}
+    >
+      <form className="fin-modal-form" onSubmit={handleSubmit}>
+        <div className="fin-field">
+          <label className="fin-label">
+            ชื่อเป้าหมาย <span className="field-required">*</span>
+          </label>
+          <input
+            className="input"
+            placeholder="เช่น ซื้อคอมใหม่, ค่าเทอม, เที่ยวญี่ปุ่น, เงินสำรอง"
+            value={form.name}
+            onChange={e => setField('name', e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        <div className="fin-field-row">
+          <div className="fin-field">
+            <label className="fin-label">
+              ยอดเป้าหมาย (บาท) <span className="field-required">*</span>
+            </label>
+            <div className="fin-input-wrapper">
+              <span className="fin-input-prefix">฿</span>
+              <input
+                className="input fin-amount-field"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="40,000"
+                value={form.targetAmount}
+                onChange={e => setField('targetAmount', e.target.value)}
+              />
+            </div>
+          </div>
+
+          {!isEditing && (
+            <div className="fin-field">
+              <label className="fin-label">ยอดเริ่มต้น (แบ่งทันที - ไม่บังคับ)</label>
+              <div className="fin-input-wrapper">
+                <span className="fin-input-prefix">฿</span>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  max={Math.max(0, availableBalance)}
+                  step="any"
+                  placeholder="0"
+                  value={form.initialAmount}
+                  onChange={e => setField('initialAmount', e.target.value)}
+                />
+              </div>
+              <span className="fin-field-hint">
+                เงินที่ใช้ได้: {formatMoney(availableBalance)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">เลือกไอคอน / Emoji</label>
+          <div className="fin-icon-picker">
+            {SUGGESTED_ICONS.map(ico => (
+              <button
+                key={ico}
+                type="button"
+                className={`fin-icon-chip ${form.icon === ico ? 'fin-icon-chip--active' : ''}`}
+                onClick={() => setField('icon', ico)}
+              >
+                {ico}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">วันที่ต้องการบรรลุเป้าหมาย (ไม่บังคับ)</label>
+          <input
+            className="input"
+            type="date"
+            min={todayISO()}
+            value={form.targetDate}
+            onChange={e => setField('targetDate', e.target.value)}
+          />
+        </div>
+
+        <div className="fin-field">
+          <label className="fin-label">รายละเอียดเพิ่มเติม (ไม่บังคับ)</label>
+          <textarea
+            className="input textarea"
+            rows="2"
+            placeholder="รายละเอียดหรือเหตุผลในการออม"
+            value={form.note}
+            onChange={e => setField('note', e.target.value)}
+          />
+        </div>
+
+        {error && <div className="fin-form-error">{error}</div>}
+
+        <div className="fin-form-footer">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            ยกเลิก
+          </button>
+          <button type="submit" className="btn btn-primary fin-submit-btn">
+            {isEditing ? 'บันทึกการแก้ไข' : 'สร้างเป้าหมาย'}
+          </button>
+        </div>
+      </form>
+    </ModalDialog>
+  )
+}
+
+/* ── Goal History Modal ── */
+function GoalHistoryModal({ goal, onClose }) {
+  const history = useMemo(() => {
+    if (!goal?.id) return []
+    return financeService.getGoalHistory(goal.id)
+  }, [goal])
+
+  return (
+    <ModalDialog
+      title={`ประวัติการเคลื่อนไหว: ${goal.icon || '🎯'} ${goal.name}`}
+      subtitle={`ยอดเงินออมปัจจุบัน: ${formatMoney(goal.savedAmount || 0)} / ${formatMoney(goal.targetAmount || 0)}`}
+      onClose={onClose}
+      maxWidth="600px"
+    >
+      <div className="fin-goal-history-list">
+        {history.length ? (
+          history.map(item => {
+            const isDeposit = item.type === 'SAVING_TRANSFER_IN'
+            return (
+              <div key={item.id} className="fin-goal-history-item">
+                <div className={`fin-gh-icon ${isDeposit ? 'gh-in' : 'gh-out'}`}>
+                  {isDeposit ? '↗' : '↙'}
+                </div>
+                <div className="fin-gh-info">
+                  <strong>{isDeposit ? 'แบ่งเงินเข้าเป้าหมาย' : 'โยกเงินออกไปใช้'}</strong>
+                  <span>{formatDateTimeTH(item.date)}</span>
+                  {item.note && <p className="fin-gh-note">{item.note}</p>}
+                </div>
+                <div className={`fin-gh-amount ${isDeposit ? 'tx-saving-in' : 'tx-saving-out'}`}>
+                  {isDeposit ? '+' : '-'}{formatMoney(item.amount)}
+                </div>
+              </div>
+            )
+          })
+        ) : (
+          <div className="fin-empty-modal">
+            <span className="fin-empty-modal-icon">📋</span>
+            <p>ยังไม่มีประวัติการแบ่งเงินหรือโยกเงินสำหรับเป้าหมายนี้</p>
+          </div>
+        )}
+      </div>
+    </ModalDialog>
+  )
+}
+
+/* ── Transaction Row Component ── */
+function TransactionRow({ entry, onDelete }) {
+  const [showConfirm, setShowConfirm] = useState(false)
+  const isIncome = entry.type === 'income'
+  const isExpense = entry.type === 'expense'
+  const isSavingIn = entry.type === 'SAVING_TRANSFER_IN'
+  const isSavingOut = entry.type === 'SAVING_TRANSFER_OUT'
+
+  const meta = getCategoryMeta(entry.category, entry.type)
+  const badge = getTransactionTypeBadge(entry.type)
+
+  let iconChar = meta?.emoji || '💸'
+  let amountClass = 'tx-expense'
+  let prefix = '-'
+
+  if (isIncome) {
+    amountClass = 'tx-income'
+    prefix = '+'
+  } else if (isSavingIn) {
+    iconChar = '↗'
+    amountClass = 'tx-saving-in'
+    prefix = '↗ '
+  } else if (isSavingOut) {
+    iconChar = '↙'
+    amountClass = 'tx-saving-out'
+    prefix = '↙ '
+  }
+
+  return (
+    <div className={`tx-row tx-row--${entry.type}`}>
+      <div className={`tx-cat-icon icon-type-${badge.color}`}>
+        {iconChar}
+      </div>
+
+      <div className="tx-info">
+        <div className="tx-top-row">
+          <span className="tx-name" title={entry.name}>{entry.name}</span>
+          <span className={`tx-type-badge badge-${badge.color}`}>
+            {badge.label}
+          </span>
+        </div>
+        <div className="tx-meta-row">
+          {meta?.label && !isSavingIn && !isSavingOut && (
+            <span className="tx-cat-badge">{meta.emoji} {meta.label}</span>
+          )}
+          <span className="tx-date">{formatDateTH(entry.date)}</span>
+          {entry.note && <span className="tx-note" title={entry.note}>• {entry.note}</span>}
+        </div>
+      </div>
+
+      <div className="tx-right">
+        <span className={`tx-amount ${amountClass}`}>
+          {prefix}{formatMoney(entry.amount)}
+        </span>
+
+        {showConfirm ? (
+          <div className="tx-confirm-box">
+            <span>ลบ?</span>
+            <button
+              className="tx-confirm-btn"
+              onClick={() => onDelete(entry.id)}
+              aria-label="ยืนยันลบ"
+            >
+              ✓
+            </button>
+            <button
+              className="tx-cancel-btn"
+              onClick={() => setShowConfirm(false)}
+              aria-label="ยกเลิก"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <button
+            className="tx-delete"
+            onClick={() => setShowConfirm(true)}
+            aria-label="ลบรายการ"
+            title="ลบรายการ"
+          >
+            ×
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ════════════════════════════════════════════════════════════
+   MAIN FINANCE PAGE COMPONENT
+   ════════════════════════════════════════════════════════════ */
+export default function FinancePage() {
+  const [tab, setTab] = useState('transactions')
+  const [modal, setModal] = useState(null)
+  const [activeGoal, setActiveGoal] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [selectedMonth, setSelectedMonth] = useState('')
+  const [flash, setFlash] = useState('')
+
+  const [entries, setEntries] = useState(() => financeService.getAll())
+  const [goals, setGoals] = useState(() => financeService.getSavingGoals())
+
+  const refreshData = useCallback(() => {
+    setEntries(financeService.getAll())
+    setGoals(financeService.getSavingGoals())
+  }, [])
+
+  const balances = useMemo(() => financeService.getBalances(), [entries, goals])
+
+  const notify = (text) => {
+    setFlash(text)
+    setTimeout(() => setFlash(''), 3000)
+  }
+
+  const closeModal = () => {
+    setModal(null)
+    setActiveGoal(null)
+  }
+
+  /* ── Filtered Transactions ── */
+  const filteredHistory = useMemo(() => {
+    return entries.filter(item => {
+      // Month filter
+      if (selectedMonth && item.date.slice(0, 7) !== selectedMonth) {
+        return false
+      }
+      // Type filter
+      if (typeFilter === 'income' && item.type !== 'income') return false
+      if (typeFilter === 'expense' && item.type !== 'expense') return false
+      if (typeFilter === 'saving' && !item.type?.startsWith('SAVING_TRANSFER')) return false
+
+      // Search query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase()
+        const matchName = item.name?.toLowerCase().includes(q)
+        const matchNote = item.note?.toLowerCase().includes(q)
+        const matchCat = item.category?.toLowerCase().includes(q)
+        if (!matchName && !matchNote && !matchCat) return false
+      }
+
+      return true
+    })
+  }, [entries, selectedMonth, typeFilter, searchQuery])
+
+  /* ── Chart data for Overview ── */
+  const chartData = useMemo(() => {
+    return financeService.getMonthlyChart(6)
+  }, [entries])
+
+  const categoryExpenses = useMemo(() => {
+    return financeService.getCategoryBreakdown('expense')
+  }, [entries])
+
+  /* ── Handlers ── */
+  const handleSaveTransaction = (entryData) => {
+    financeService.add(entryData)
+    refreshData()
+    closeModal()
+    notify(entryData.type === 'income' ? 'บันทึกรายรับแล้ว' : 'บันทึกรายจ่ายแล้ว')
+  }
+
+  const handleAllocateSaving = (goalId, amount, note, date) => {
+    const res = financeService.allocateToSaving(goalId, amount, note, date)
+    if (!res.ok) {
+      return notify(res.error || 'ไม่สามารถแบ่งเงินออมได้')
+    }
+    refreshData()
+    closeModal()
+    notify('แบ่งเงินเก็บออมสำเร็จ 🎉')
+  }
+
+  const handleWithdrawSaving = (goalId, amount, note, date) => {
+    const res = financeService.withdrawFromSaving(goalId, amount, note, date)
+    if (!res.ok) {
+      return notify(res.error || 'ไม่สามารถโยกเงินกลับได้')
+    }
+    refreshData()
+    closeModal()
+    notify('โยกเงินกลับมาใช้สำเร็จ 💳')
+  }
+
+  const handleSaveGoal = (goalData) => {
+    if (activeGoal?.id) {
+      financeService.updateSavingGoal(activeGoal.id, goalData)
+      notify('แก้ไขเป้าหมายการออมแล้ว')
+    } else {
+      financeService.addSavingGoal(goalData)
+      notify('สร้างเป้าหมายการออมสำเร็จ 🎯')
+    }
+    refreshData()
+    closeModal()
+  }
+
+  const handleDeleteGoal = (goal) => {
+    if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบเป้าหมาย "${goal.name}"?\n(หากมียอดเงินออมคงเหลือ ระบบจะคืนเงินเข้า "เงินที่ใช้ได้" อัตโนมัติ)`)) {
+      financeService.deleteSavingGoal(goal.id, true)
+      refreshData()
+      notify(`ลบเป้าหมาย "${goal.name}" แล้ว`)
+    }
+  }
+
+  const handleDeleteTransaction = (id) => {
+    financeService.delete(id)
+    refreshData()
+    notify('ลบรายการเรียบร้อยแล้ว')
+  }
+
+  const monthOptions = useMemo(() => getMonthOptions(12), [])
+
+  return (
+    <div className="fin-page">
+      {/* Toast Notification */}
+      {flash && <div className="fin-toast fin-toast--ok animate-fadeup">{flash}</div>}
+
+      {/* Page Header */}
+      <div className="fin-page-head">
+        <div>
+          <h1 className="page-title">การเงิน (Finance)</h1>
+          <p className="fin-page-desc">
+            ระบบบริหารรายรับ-รายจ่าย และจัดสรรเงินออมส่วนบุคคล
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary fin-btn-add"
+          onClick={() => setModal('action')}
+        >
+          + บันทึกรายการ
+        </button>
+      </div>
+
+      {/* Mode Navigation Tabs */}
+      <div className="fin-mode-tabs">
+        <button
+          type="button"
+          className={`fin-mode-tab ${tab === 'transactions' ? 'fin-mode-tab--active' : ''}`}
+          onClick={() => setTab('transactions')}
+        >
+          💰 รายรับ / รายจ่าย
+        </button>
+        <button
+          type="button"
+          className={`fin-mode-tab ${tab === 'savings' ? 'fin-mode-tab--active' : ''}`}
+          onClick={() => setTab('savings')}
+        >
+          🎯 เป้าหมายการออม {goals.length > 0 && `(${goals.length})`}
+        </button>
+        <button
+          type="button"
+          className={`fin-mode-tab ${tab === 'overview' ? 'fin-mode-tab--active' : ''}`}
+          onClick={() => setTab('overview')}
+        >
+          📊 ภาพรวม
+        </button>
+      </div>
+
+      {/* Summary Stat Cards */}
+      <div className="fin-summary-grid">
+        <StatCard
+          icon="💰"
+          label="เงินทั้งหมด"
+          value={balances.total}
+          subtext="ใช้ได้ + เงินออม"
+          accent="violet"
+        />
+        <StatCard
+          icon="💳"
+          label="เงินที่ใช้ได้"
+          value={balances.available}
+          subtext={balances.available >= 0 ? 'พร้อมใช้จ่าย' : '⚠ ติดลบ'}
+          accent={balances.available >= 0 ? 'green' : 'rose'}
+        />
+        <StatCard
+          icon="🎯"
+          label="เงินออมทั้งหมด"
+          value={balances.savings}
+          subtext={`${goals.length} เป้าหมาย`}
+          accent="amber"
+        />
+        <StatCard
+          icon="📈"
+          label="รายรับเดือนนี้"
+          value={balances.thisMonthIncome}
+          subtext="Income"
+          accent="green"
+        />
+        <StatCard
+          icon="📉"
+          label="รายจ่ายเดือนนี้"
+          value={balances.thisMonthExpense}
+          subtext="Expense"
+          accent="rose"
+        />
+      </div>
+
+      {/* ── TAB 1: Transactions (รายรับ / รายจ่าย) ── */}
+      {tab === 'transactions' && (
+        <section className="fin-card card fin-list-container">
+          <header className="fin-panel-header">
+            <div className="fin-panel-title-row">
+              <span className="section-label">ประวัติรายการทั้งหมด</span>
+              <span className="badge badge-violet">{filteredHistory.length} รายการ</span>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="fin-filter-bar">
+              <div className="fin-search-box">
+                <span className="fin-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="input fin-search-input"
+                  placeholder="ค้นหารายการ, หมายเหตุ..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    className="fin-search-clear"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="ล้างคำค้นหา"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="fin-filter-chips">
+                <button
+                  type="button"
+                  className={`fin-chip ${typeFilter === 'all' ? 'fin-chip--active' : ''}`}
+                  onClick={() => setTypeFilter('all')}
+                >
+                  ทั้งหมด
+                </button>
+                <button
+                  type="button"
+                  className={`fin-chip chip-income ${typeFilter === 'income' ? 'fin-chip--active' : ''}`}
+                  onClick={() => setTypeFilter('income')}
+                >
+                  🟢 รายรับ
+                </button>
+                <button
+                  type="button"
+                  className={`fin-chip chip-expense ${typeFilter === 'expense' ? 'fin-chip--active' : ''}`}
+                  onClick={() => setTypeFilter('expense')}
+                >
+                  🔴 รายจ่าย
+                </button>
+                <button
+                  type="button"
+                  className={`fin-chip chip-saving ${typeFilter === 'saving' ? 'fin-chip--active' : ''}`}
+                  onClick={() => setTypeFilter('saving')}
+                >
+                  🎯 การออม
+                </button>
+              </div>
+
+              <div className="fin-month-filter">
+                <select
+                  className="input fin-month-select"
+                  value={selectedMonth}
+                  onChange={e => setSelectedMonth(e.target.value)}
+                >
+                  <option value="">ทุกเดือน</option>
+                  {monthOptions.map(m => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </header>
+
+          {/* Scrollable List bounded cleanly */}
+          <div className="fin-scroll-list">
+            {filteredHistory.length > 0 ? (
+              <div className="fin-tx-list">
+                {filteredHistory.map(item => (
+                  <TransactionRow
+                    key={item.id}
+                    entry={item}
+                    onDelete={handleDeleteTransaction}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="fin-empty">
+                <span className="fin-empty-icon">💸</span>
+                <p>ไม่พบรายการที่ตรงกับเงื่อนไข</p>
+                <span>กดปุ่ม "+ บันทึกรายการ" เพื่อเริ่มต้น</span>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-size-sm"
+                  style={{ marginTop: '12px' }}
+                  onClick={() => setModal('action')}
+                >
+                  + บันทึกรายการ
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ── TAB 2: Savings Goals (เป้าหมายการออม) ── */}
+      {tab === 'savings' && (
+        <section className="fin-savings-view">
+          <div className="fin-savings-top-bar">
+            <div>
+              <h2 className="fin-section-title">🎯 เป้าหมายการออม</h2>
+              <p className="fin-section-desc">
+                การออมคือการจัดสรรเงิน ไม่ใช่รายจ่าย (เงินยังเป็นของคุณเสมอ)
+              </p>
+            </div>
+            <div className="fin-savings-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={!goals.length}
+                onClick={() => setModal('withdraw')}
+              >
+                ↔ โยกเงินกลับ
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={!goals.length}
+                onClick={() => setModal('allocate')}
+              >
+                🎯 แบ่งเงินออม
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setActiveGoal(null)
+                  setModal('goal')
+                }}
+              >
+                + สร้างเป้าหมายการออม
+              </button>
+            </div>
+          </div>
+
+          {goals.length > 0 ? (
+            <div className="fin-goals-grid">
+              {goals.map(goal => {
+                const saved = Number(goal.savedAmount || 0)
+                const target = Number(goal.targetAmount || 0)
+                const pct = target > 0 ? Math.min(100, Math.round((saved / target) * 100)) : 0
+                const remaining = Math.max(0, target - saved)
+                const isCompleted = target > 0 && saved >= target
+
+                return (
+                  <article className={`card fin-goal-card ${isCompleted ? 'goal-completed' : ''}`} key={goal.id}>
+                    <div className="fin-gc-header">
+                      <div className="fin-gc-icon">{goal.icon || '🎯'}</div>
+                      <div className="fin-gc-title-wrap">
+                        <h3 className="fin-gc-title">{goal.name}</h3>
+                        {goal.targetDate && (
+                          <span className="fin-gc-date">
+                            📅 เป้าหมาย {formatDateTH(goal.targetDate)}
+                          </span>
+                        )}
+                      </div>
+                      {isCompleted && (
+                        <span className="badge badge-green fin-gc-complete-badge">
+                          🎉 สำเร็จแล้ว!
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="fin-gc-amounts">
+                      <div className="fin-gc-saved-row">
+                        <span className="fin-gc-saved-val">{formatMoney(saved)}</span>
+                        <span className="fin-gc-target-val">/ {formatMoney(target)}</span>
+                      </div>
+                      <div className="fin-gc-remaining-row">
+                        <span>
+                          {isCompleted
+                            ? 'ครบตามเป้าหมายแล้ว!'
+                            : `เหลืออีก ${formatMoney(remaining)}`}
+                        </span>
+                        <strong className="fin-gc-pct">{pct}%</strong>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="fin-progress-track">
+                      <div
+                        className={`fin-progress-bar ${isCompleted ? 'progress-done' : ''}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+
+                    {goal.note && <p className="fin-gc-note">{goal.note}</p>}
+
+                    {/* Goal Card Actions */}
+                    <div className="fin-gc-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-size-sm"
+                        onClick={() => {
+                          setActiveGoal(goal)
+                          setModal('allocate')
+                        }}
+                      >
+                        + แบ่งเงินเข้า
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-size-sm"
+                        disabled={saved <= 0}
+                        onClick={() => {
+                          setActiveGoal(goal)
+                          setModal('withdraw')
+                        }}
+                      >
+                        ↙ โยกเงินออก
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-size-sm"
+                        onClick={() => {
+                          setActiveGoal(goal)
+                          setModal('history')
+                        }}
+                        title="ดูประวัติการเคลื่อนไหว"
+                      >
+                        📋 ประวัติ
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-size-sm"
+                        onClick={() => {
+                          setActiveGoal(goal)
+                          setModal('goal')
+                        }}
+                        title="แก้ไขเป้าหมาย"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-size-sm fin-btn-del"
+                        onClick={() => handleDeleteGoal(goal)}
+                        title="ลบเป้าหมาย"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="card card-pad-lg fin-empty">
+              <span className="fin-empty-icon">🎯</span>
+              <h3>ยังไม่มีเป้าหมายการออม</h3>
+              <p>สร้างเป้าหมายเพื่อแบ่งเงินเก็บสำหรับสิ่งที่คุณต้องการ</p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ marginTop: '16px' }}
+                onClick={() => {
+                  setActiveGoal(null)
+                  setModal('goal')
+                }}
+              >
+                + สร้างเป้าหมายการออมแรก
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ── TAB 3: Overview (ภาพรวม) ── */}
+      {tab === 'overview' && (
+        <section className="fin-overview-container">
+          <div className="fin-overview-grid-top">
+            {/* Money Allocation Balance Card */}
+            <div className="card card-pad-lg">
+              <h2 className="fin-overview-card-title">💰 สัดส่วนเงินทั้งหมด</h2>
+              <div className="fin-balance-split-card">
+                <div className="fin-split-total">
+                  <span>เงินทั้งหมดที่คุณมี</span>
+                  <strong>{formatMoney(balances.total)}</strong>
+                </div>
+
+                {/* Proportion bar */}
+                {balances.total > 0 ? (
+                  <div className="fin-split-bar">
+                    <div
+                      className="fin-split-avail"
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(100, (balances.available / balances.total) * 100)
+                        )}%`,
+                      }}
+                      title={`เงินที่ใช้ได้: ${formatMoney(balances.available)}`}
+                    />
+                    <div
+                      className="fin-split-save"
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(100, (balances.savings / balances.total) * 100)
+                        )}%`,
+                      }}
+                      title={`เงินออม: ${formatMoney(balances.savings)}`}
+                    />
+                  </div>
+                ) : null}
+
+                <div className="fin-split-legend">
+                  <div className="fin-legend-item">
+                    <span className="fin-legend-dot dot-avail" />
+                    <div>
+                      <small>เงินที่ใช้ได้ (Available)</small>
+                      <strong>{formatMoney(balances.available)}</strong>
+                    </div>
+                  </div>
+                  <div className="fin-legend-item">
+                    <span className="fin-legend-dot dot-save" />
+                    <div>
+                      <small>เงินออม (Savings)</small>
+                      <strong>{formatMoney(balances.savings)}</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Financial Logic Explainer Card */}
+            <div className="card card-pad-lg fin-explainer-card">
+              <h2 className="fin-overview-card-title">📐 หลักการจัดสรรเงิน</h2>
+              <ul className="fin-explainer-list">
+                <li>
+                  <strong>เงินทั้งหมด = เงินที่ใช้ได้ + เงินออม</strong>
+                  <p>คือมูลค่าเงินจริงทั้งหมดที่คุณมีในครอบครอง</p>
+                </li>
+                <li>
+                  <strong>การแบ่งเงินไปออม ≠ รายจ่าย</strong>
+                  <p>เงินยังคงเป็นของคุณ เพียงแค่ย้ายจาก "เงินที่ใช้ได้" ไปยังเป้าหมาย</p>
+                </li>
+                <li>
+                  <strong>การโยกเงินกลับ ≠ รายรับใหม่</strong>
+                  <p>เป็นการนำเงินที่ออมไว้กลับมาใช้ ไม่ทำให้ยอดรายรับจริงผิดเพี้ยน</p>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* 6-Month Income vs Expense Chart */}
+          <div className="card card-pad-lg fin-chart-card">
+            <h2 className="fin-overview-card-title">📈 รายรับ-รายจ่าย 6 เดือนย้อนหลัง</h2>
+            <p className="fin-chart-sub">
+              (คำนวณจากรายรับและรายจ่ายจริง โดยไม่รวมยอดการโยกเงินออม)
+            </p>
+            <div className="fin-chart-wrapper">
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="chartIncomeGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="chartExpenseGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fill: '#8e8ea0', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fill: '#8e8ea0', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={v => `฿${(v / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null
+                      return (
+                        <div className="chart-tooltip">
+                          <p className="chart-tooltip-label">{label}</p>
+                          {payload.map((p, i) => (
+                            <p key={i} style={{ color: p.color, margin: '3px 0', fontSize: '0.85rem' }}>
+                              {p.name}: {formatMoney(p.value)}
+                            </p>
+                          ))}
+                        </div>
+                      )
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="income"
+                    name="รายรับ"
+                    stroke="#4ade80"
+                    fill="url(#chartIncomeGrad)"
+                    strokeWidth={2.5}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="expense"
+                    name="รายจ่าย"
+                    stroke="#f43f5e"
+                    fill="url(#chartExpenseGrad)"
+                    strokeWidth={2.5}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Category Expense Breakdown */}
+          {categoryExpenses.length > 0 && (
+            <div className="card card-pad-lg">
+              <h2 className="fin-overview-card-title">🛍️ รายจ่ายแยกตามหมวดหมู่</h2>
+              <div className="fin-cat-breakdown-list">
+                {categoryExpenses.map(item => {
+                  const meta = getCategoryMeta(item.category, 'expense')
+                  const totalExp = balances.expense || 1
+                  const pct = Math.round((item.amount / totalExp) * 100)
+                  return (
+                    <div key={item.category} className="fin-cat-bd-row">
+                      <div className="fin-cat-bd-left">
+                        <span className="fin-cat-bd-emoji">{meta.emoji}</span>
+                        <span className="fin-cat-bd-name">{meta.label}</span>
+                      </div>
+                      <div className="fin-cat-bd-mid">
+                        <div className="fin-cat-bd-track">
+                          <div className="fin-cat-bd-fill" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                      <div className="fin-cat-bd-right">
+                        <strong>{formatMoney(item.amount)}</strong>
+                        <small>{pct}%</small>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ── MODALS ── */}
+      {modal === 'action' && (
+        <ActionPickerModal
+          onSelect={actionType => setModal(actionType)}
+          onClose={closeModal}
+        />
+      )}
+
+      {modal === 'income' && (
+        <IncomeExpenseFormModal
+          type="income"
+          onSave={handleSaveTransaction}
+          onClose={closeModal}
+        />
+      )}
+
+      {modal === 'expense' && (
+        <IncomeExpenseFormModal
+          type="expense"
+          onSave={handleSaveTransaction}
+          onClose={closeModal}
+        />
+      )}
+
+      {modal === 'allocate' && (
+        <AllocateSavingsModal
+          goals={goals}
+          availableBalance={balances.available}
+          initialGoalId={activeGoal?.id}
+          onSave={handleAllocateSaving}
+          onClose={closeModal}
+          onCreateGoal={() => {
+            setActiveGoal(null)
+            setModal('goal')
+          }}
+        />
+      )}
+
+      {modal === 'withdraw' && (
+        <WithdrawSavingsModal
+          goals={goals}
+          initialGoalId={activeGoal?.id}
+          onSave={handleWithdrawSaving}
+          onClose={closeModal}
+        />
+      )}
+
+      {modal === 'goal' && (
+        <GoalFormModal
+          goal={activeGoal}
+          availableBalance={balances.available}
+          onSave={handleSaveGoal}
+          onClose={closeModal}
+        />
+      )}
+
+      {modal === 'history' && activeGoal && (
+        <GoalHistoryModal
+          goal={activeGoal}
+          onClose={closeModal}
+        />
+      )}
+    </div>
+  )
+}
+

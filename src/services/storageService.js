@@ -6,13 +6,18 @@ export const STORAGE_PREFIX = 'lifehub_'
 export const SCHEMA_VERSION = '1.0.0'
 
 export const STORAGE_KEYS = {
-  FINANCE:  `${STORAGE_PREFIX}finance`,
-  TODOS:    `${STORAGE_PREFIX}todos`,
-  WORKOUTS: `${STORAGE_PREFIX}workouts`,
-  HEALTH:   `${STORAGE_PREFIX}health`,
-  GOALS:    `${STORAGE_PREFIX}goals`,
-  SETTINGS: `${STORAGE_PREFIX}settings`,
-  SEEDED:   `${STORAGE_PREFIX}seeded`,
+  FINANCE:    `${STORAGE_PREFIX}finance`,
+  TODOS:      `${STORAGE_PREFIX}todos`,
+  WORKOUTS:   `${STORAGE_PREFIX}workouts`,
+  HEALTH:     `${STORAGE_PREFIX}health`,
+  GOALS:      `${STORAGE_PREFIX}goals`,
+  SETTINGS:   `${STORAGE_PREFIX}settings`,
+  SEEDED:     `${STORAGE_PREFIX}seeded`,
+  HABITS:     `${STORAGE_PREFIX}habits`,
+  HABIT_LOGS: `${STORAGE_PREFIX}habit_logs`,
+  BUDGETS:    `${STORAGE_PREFIX}budgets`,
+  SAVING_GOALS: `${STORAGE_PREFIX}saving_goals`,
+  SLEEP_LOGS: `${STORAGE_PREFIX}sleep_logs`,
 }
 
 export function storageGet(key, fallback = null) {

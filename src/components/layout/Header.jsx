@@ -1,7 +1,9 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import GlobalSearch from '../search/GlobalSearch.jsx'
 import { useLocation } from 'react-router-dom'
 import { MENU_ITEMS } from '../../data/menuItems.js'
 import { useTheme } from '../../contexts/ThemeContext.jsx'
+import './Header.css'
 
 const PAGE_MAP = Object.fromEntries(
   MENU_ITEMS.map(m => [m.path, { label: m.label, accent: m.accent }])
@@ -54,6 +56,12 @@ const BlossomIcon = () => (
   </svg>
 )
 
+const SearchIcon = () => (
+  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+  </svg>
+)
+
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme()
   const isDark = theme === 'dark'
@@ -81,11 +89,26 @@ export default function Header({ onMenuToggle, mode }) {
   const { pathname } = useLocation()
   const page  = PAGE_MAP[pathname]
   const title = page?.label ?? 'LifeHub'
-  const isMobile = mode === 'mobile'
+  const isMobile  = mode === 'mobile'
+  const isDesktop = mode === 'desktop'
+  // Show hamburger on mobile AND tablet (desktop sidebar is always visible)
+  const showHamburger = !isDesktop
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  // Ctrl+K / Cmd+K shortcut
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(v => !v) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
-    <header className="topbar">
-      {isMobile && (
+    <>
+    <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+    <header className={`topbar topbar--${mode}`}>
+      {showHamburger && (
         <button
           className="topbar-menu-btn"
           onClick={onMenuToggle}
@@ -104,6 +127,15 @@ export default function Header({ onMenuToggle, mode }) {
         {isMobile && (
           <span className="topbar-date">{getTodayThai()}</span>
         )}
+        <button
+          className="topbar-search-btn"
+          onClick={() => setSearchOpen(true)}
+          aria-label="ค้นหา"
+          title="ค้นหา (Ctrl+K)"
+        >
+          <SearchIcon />
+          {isDesktop && <span className="topbar-search-hint">Ctrl K</span>}
+        </button>
         <ThemeToggle />
         <button className="topbar-icon-btn" aria-label="การแจ้งเตือน">
           <BellIcon />
@@ -111,5 +143,6 @@ export default function Header({ onMenuToggle, mode }) {
         <div className="topbar-avatar" aria-label="LifeHub user">LH</div>
       </div>
     </header>
+    </>
   )
 }

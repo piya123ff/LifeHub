@@ -1,16 +1,48 @@
 // financeUtils.js — helpers
 
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../../constants/categories.js'
+export const TRANSACTION_TYPES = {
+  INCOME: 'income',
+  EXPENSE: 'expense',
+  SAVING_IN: 'SAVING_TRANSFER_IN',
+  SAVING_OUT: 'SAVING_TRANSFER_OUT',
+}
 
 export function getCategoryMeta(id, type) {
+  if (type === 'SAVING_TRANSFER_IN' || type === 'SAVING_TRANSFER_OUT') {
+    return { id: 'saving', label: 'การออม', emoji: '🎯' }
+  }
   const list = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
-  return list.find(c => c.id === id) ?? { id, label: id, emoji: type === 'income' ? '\u{1F4B0}' : '\u{1F4E6}' }
+  return list.find(c => c.id === id) ?? { id, label: id, emoji: type === 'income' ? '💰' : '📦' }
+}
+
+export function getTransactionTypeBadge(type) {
+  switch (type) {
+    case 'income':
+      return { label: 'รายรับ', color: 'green', icon: '+', prefix: '+' }
+    case 'expense':
+      return { label: 'รายจ่าย', color: 'rose', icon: '-', prefix: '-' }
+    case 'SAVING_TRANSFER_IN':
+      return { label: 'แบ่งเงินออม', color: 'amber', icon: '↗', prefix: '↗' }
+    case 'SAVING_TRANSFER_OUT':
+      return { label: 'ถอนจากเงินออม', color: 'blue', icon: '↙', prefix: '↙' }
+    default:
+      return { label: 'รายการ', color: 'violet', icon: '•', prefix: '' }
+  }
 }
 
 export function formatDateTH(isoString) {
   if (!isoString) return ''
   return new Date(isoString).toLocaleDateString('th-TH', {
     day: 'numeric', month: 'short', year: 'numeric',
+  })
+}
+
+export function formatDateTimeTH(isoString) {
+  if (!isoString) return ''
+  const d = new Date(isoString)
+  return d.toLocaleDateString('th-TH', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
   })
 }
 
@@ -34,8 +66,8 @@ export function filterByMonth(entries, ym) {
 }
 
 export function computeSummary(entries) {
-  const income  = entries.filter(e => e.type === 'income').reduce((s, e) => s + e.amount, 0)
-  const expense = entries.filter(e => e.type === 'expense').reduce((s, e) => s + e.amount, 0)
+  const income  = entries.filter(e => e.type === 'income').reduce((s, e) => s + Number(e.amount || 0), 0)
+  const expense = entries.filter(e => e.type === 'expense').reduce((s, e) => s + Number(e.amount || 0), 0)
   return { income, expense, balance: income - expense }
 }
 

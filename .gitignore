@@ -1,7 +1,10 @@
 node_modules
 dist
+dist-verify
 dist-ssr
 *.local
 .DS_Store
 Thumbs.db
 vite.config.js.timestamp-*.mjs
+.claude/
+

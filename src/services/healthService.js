@@ -51,3 +51,43 @@ export const healthService = {
     return storageSet(HEALTH_KEY, storageGet(HEALTH_KEY, []).filter(e => e.id !== id))
   },
 }
+
+const SLEEP_KEY = STORAGE_KEYS.SLEEP_LOGS
+
+export const sleepService = {
+  getAll() { return storageGet(SLEEP_KEY, []) },
+
+  add({ date, bedtime, wakeTime, durationMin, quality, note }) {
+    const list = storageGet(SLEEP_KEY, [])
+    const item = { id: generateId(), createdAt: new Date().toISOString(), date, bedtime, wakeTime, durationMin, quality: quality || null, note: note || null }
+    list.unshift(item)
+    storageSet(SLEEP_KEY, list)
+    return item
+  },
+
+  delete(id) {
+    return storageSet(SLEEP_KEY, storageGet(SLEEP_KEY, []).filter(e => e.id !== id))
+  },
+
+  getHistory(days = 14) {
+    const from = new Date(Date.now() - days * 864e5)
+    return storageGet(SLEEP_KEY, [])
+      .filter(e => new Date(e.date) >= from)
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+  },
+
+  getSummary(days = 7) {
+    const history = this.getHistory(days)
+    if (!history.length) return { avg: null, count: 0, best: null, worst: null }
+    const durations = history.map(e => e.durationMin)
+    const avg   = Math.round(durations.reduce((s, d) => s + d, 0) / durations.length)
+    const best  = Math.max(...durations)
+    const worst = Math.min(...durations)
+    return { avg, count: history.length, best, worst }
+  },
+
+  getTodaySleep() {
+    const today = new Date().toISOString().slice(0, 10)
+    return storageGet(SLEEP_KEY, []).find(e => e.date === today) || null
+  },
+}

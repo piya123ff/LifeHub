@@ -2,22 +2,37 @@
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
+    />
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.webmanifest" />
-    <meta name="theme-color" content="#1a1a2e" />
 
-    <!-- iOS/iPadOS Safari PWA -->
+    <!-- Theme color (Dark default + Pink variant) -->
+    <meta name="theme-color" content="#0b0b1e" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fff0f5" media="(prefers-color-scheme: light)" />
+
+    <!-- Generic standalone hint -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="LifeHub" />
+
+    <!-- iOS / iPadOS Safari PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="LifeHub" />
+    <meta name="format-detection" content="telephone=no" />
+
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png" />
 
     <!-- SEO -->
-    <meta name="description" content="บริหารชีวิตส่วนตัว การเงิน To-Do Workout สุขภาพ เป้าหมาย" />
+    <meta
+      name="description"
+      content="บริหารชีวิตส่วนตัว การเงิน To-Do Workout สุขภาพ เป้าหมาย"
+    />
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="96x96" href="icons/icon-96.png" />

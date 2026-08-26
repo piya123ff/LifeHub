@@ -1,6 +1,7 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { BOTTOM_NAV_ITEMS } from '../../data/menuItems.js'
+import './BottomNav.css'
 
 export default function BottomNav() {
   return (

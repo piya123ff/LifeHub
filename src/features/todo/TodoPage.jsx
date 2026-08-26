@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { todoService } from '../../services/todoService.js'
+import { todoService, subTaskService } from '../../services/todoService.js'
 import {
   PRIORITIES, TODO_CATEGORIES,
   getPriorityMeta, getCategoryMeta,
@@ -270,12 +270,82 @@ function FilterPanel({ filters, onChange, counts }) {
 }
 
 /* ─────────────────────────────────────────────────────────
+   Sub-task list inside a TodoItem
+───────────────────────────────────────────────────────── */
+function SubTaskList({ todoId, subTasks = [], onReload }) {
+  const [newTitle, setNewTitle] = useState('')
+  const inputRef = useRef(null)
+
+  function handleAdd(e) {
+    e.preventDefault()
+    const t = newTitle.trim()
+    if (!t) return
+    subTaskService.add(todoId, t)
+    setNewTitle('')
+    onReload()
+    inputRef.current?.focus()
+  }
+
+  function handleToggle(subId) {
+    subTaskService.toggle(todoId, subId)
+    onReload()
+  }
+
+  function handleDelete(subId) {
+    subTaskService.delete(todoId, subId)
+    onReload()
+  }
+
+  return (
+    <div className="sub-task-list">
+      {subTasks.map(s => (
+        <div key={s.id} className={`sub-task-row ${s.completed ? 'sub-task-row--done' : ''}`}>
+          <button
+            className={`sub-task-check ${s.completed ? 'sub-task-check--done' : ''}`}
+            onClick={() => handleToggle(s.id)}
+            aria-label={s.completed ? 'ยกเลิก' : 'เสร็จ'}
+          >
+            {s.completed && (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
+            )}
+          </button>
+          <span className="sub-task-title">{s.title}</span>
+          <button className="sub-task-del" onClick={() => handleDelete(s.id)} title="ลบ">
+            <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      ))}
+      <form onSubmit={handleAdd} className="sub-task-add-row">
+        <input
+          ref={inputRef}
+          className="sub-task-input"
+          type="text"
+          placeholder="+ เพิ่ม sub-task..."
+          value={newTitle}
+          onChange={e => setNewTitle(e.target.value)}
+          maxLength={100}
+        />
+        {newTitle.trim() && (
+          <button type="submit" className="sub-task-add-btn">เพิ่ม</button>
+        )}
+      </form>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────
    Todo Item Row
 ───────────────────────────────────────────────────────── */
-function TodoItem({ todo, onToggle, onEdit, onDelete, deleteConfirm, onDeleteClick }) {
-  const overdue  = isOverdue(todo)
-  const dueToday = isDueToday(todo)
+function TodoItem({ todo, onToggle, onEdit, onDelete, deleteConfirm, onDeleteClick, onReload }) {
+  const overdue   = isOverdue(todo)
+  const dueToday  = isDueToday(todo)
   const isConfirm = deleteConfirm === todo.id
+  const [expanded, setExpanded] = useState(false)
+
+  const subs      = todo.subTasks || []
+  const subDone   = subs.filter(s => s.completed).length
+  const subTotal  = subs.length
+  const subPct    = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0
 
   return (
     <div
@@ -284,75 +354,106 @@ function TodoItem({ todo, onToggle, onEdit, onDelete, deleteConfirm, onDeleteCli
         todo.completed ? 'todo-item--done' : '',
         overdue        ? 'todo-item--overdue' : '',
         dueToday && !todo.completed ? 'todo-item--today' : '',
+        expanded ? 'todo-item--expanded' : '',
       ].join(' ')}
     >
-      {/* Checkbox */}
-      <button
-        className={`todo-checkbox priority-${todo.priority} ${todo.completed ? 'todo-checkbox--done' : ''}`}
-        onClick={() => onToggle(todo.id)}
-        aria-label={todo.completed ? 'ยกเลิกเสร็จสิ้น' : 'ทำเครื่องหมายว่าเสร็จแล้ว'}
-        title={todo.completed ? 'กลับไปค้าง' : 'ทำเครื่องหมายว่าเสร็จ'}
-      >
-        {todo.completed && (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-            <path d="M20 6L9 17l-5-5"/>
-          </svg>
-        )}
-      </button>
+      <div className="todo-item-main">
+        {/* Checkbox */}
+        <button
+          className={`todo-checkbox priority-${todo.priority} ${todo.completed ? 'todo-checkbox--done' : ''}`}
+          onClick={() => onToggle(todo.id)}
+          aria-label={todo.completed ? 'ยกเลิกเสร็จสิ้น' : 'ทำเครื่องหมายว่าเสร็จแล้ว'}
+          title={todo.completed ? 'กลับไปค้าง' : 'ทำเครื่องหมายว่าเสร็จ'}
+        >
+          {todo.completed && (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+          )}
+        </button>
 
-      {/* Content */}
-      <div className="todo-item-body">
-        <p className="todo-item-title">{todo.title}</p>
-        <div className="todo-item-meta">
-          {todo.priority && <PriorityPill id={todo.priority} />}
-          {todo.category && <CategoryTag id={todo.category} />}
-          {todo.dueDate && (
-            <span className={`todo-due ${overdue ? 'todo-due--overdue' : ''} ${dueToday ? 'todo-due--today' : ''}`}>
-              📅 {overdue ? '⚠ ' : ''}{formatDateTH(todo.dueDate)}
-            </span>
-          )}
-          {todo.note && (
-            <span className="todo-note-preview" title={todo.note}>
-              💬 {todo.note}
-            </span>
-          )}
+        {/* Content */}
+        <div className="todo-item-body">
+          <p className="todo-item-title">{todo.title}</p>
+          <div className="todo-item-meta">
+            {todo.priority && <PriorityPill id={todo.priority} />}
+            {todo.category && <CategoryTag id={todo.category} />}
+            {todo.dueDate && (
+              <span className={`todo-due ${overdue ? 'todo-due--overdue' : ''} ${dueToday ? 'todo-due--today' : ''}`}>
+                📅 {overdue ? '⚠ ' : ''}{formatDateTH(todo.dueDate)}
+              </span>
+            )}
+            {todo.note && (
+              <span className="todo-note-preview" title={todo.note}>
+                💬 {todo.note}
+              </span>
+            )}
+            {/* Sub-task progress badge */}
+            {subTotal > 0 && (
+              <button
+                className={`sub-task-badge ${subDone === subTotal ? 'sub-task-badge--done' : ''}`}
+                onClick={() => setExpanded(v => !v)}
+                title={expanded ? 'ซ่อน sub-tasks' : 'แสดง sub-tasks'}
+              >
+                ☑ {subDone}/{subTotal}
+                <span className="sub-task-badge-bar">
+                  <span style={{ width: `${subPct}%` }} />
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="todo-item-actions">
+          {/* Sub-task toggle (always visible) */}
+          <button
+            className={`todo-action-btn ${expanded ? 'todo-action-btn--active' : ''}`}
+            onClick={() => setExpanded(v => !v)}
+            title={expanded ? 'ซ่อน sub-tasks' : 'Sub-tasks'}
+          >
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+          </button>
+          <button
+            className="todo-action-btn"
+            onClick={() => onEdit(todo)}
+            aria-label="แก้ไขงาน"
+            title="แก้ไข"
+          >
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+          <button
+            className={`todo-action-btn todo-action-btn--delete ${isConfirm ? 'todo-action-btn--confirm' : ''}`}
+            onClick={() => onDeleteClick(todo.id)}
+            aria-label={isConfirm ? 'ยืนยันการลบ' : 'ลบงาน'}
+            title={isConfirm ? 'กดอีกครั้งเพื่อยืนยัน' : 'ลบ'}
+          >
+            {isConfirm ? (
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+            ) : (
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+              </svg>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="todo-item-actions">
-        <button
-          className="todo-action-btn"
-          onClick={() => onEdit(todo)}
-          aria-label="แก้ไขงาน"
-          title="แก้ไข"
-        >
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-        </button>
-        <button
-          className={`todo-action-btn todo-action-btn--delete ${isConfirm ? 'todo-action-btn--confirm' : ''}`}
-          onClick={() => onDeleteClick(todo.id)}
-          aria-label={isConfirm ? 'ยืนยันการลบ' : 'ลบงาน'}
-          title={isConfirm ? 'กดอีกครั้งเพื่อยืนยัน' : 'ลบ'}
-        >
-          {isConfirm ? (
-            <svg width="14" height="14" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M20 6L9 17l-5-5"/>
-            </svg>
-          ) : (
-            <svg width="14" height="14" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
-            </svg>
-          )}
-        </button>
-      </div>
+      {/* Expanded sub-task section */}
+      {expanded && (
+        <SubTaskList todoId={todo.id} subTasks={subs} onReload={onReload} />
+      )}
     </div>
   )
 }
@@ -495,6 +596,7 @@ export default function TodoPage() {
                   onDelete={id => { todoService.delete(id); reload() }}
                   deleteConfirm={deleteConfirm}
                   onDeleteClick={handleDeleteClick}
+                  onReload={reload}
                 />
               ))}
             </div>

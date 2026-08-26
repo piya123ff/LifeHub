@@ -9,8 +9,8 @@
 /* ── 2-col layout (iPad landscape) ───────────────────── */
 .todo-layout {
   display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: var(--space-xl);
+  grid-template-columns: 340px 1fr;
+  gap: var(--space-md);
   align-items: start;
 }
 
@@ -220,8 +220,8 @@
 /* ── Todo Item ────────────────────────────────────────── */
 .todo-item {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-md);
+  flex-direction: column;
+  gap: 0;
   padding: var(--space-md);
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -371,7 +371,7 @@
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: var(--space-sm);
-  padding: var(--space-2xl) var(--space-xl);
+  padding: var(--space-xl) var(--space-md);
   text-align: center;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -417,3 +417,153 @@
   .todo-note-preview { max-width: 120px; }
   .todo-toast { right: var(--space-md); left: var(--space-md); text-align: center; }
 }
+
+/* ══════════════════════════════════════════════════
+   Sub-tasks
+══════════════════════════════════════════════════ */
+
+/* Restructure todo-item to have a main row + expandable sub-section */
+.todo-item-main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  width: 100%;
+}
+
+/* Sub-task progress badge in meta row */
+.sub-task-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-active);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  padding: 2px 8px 2px 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.sub-task-badge:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sub-task-badge--done { color: var(--accent-green2); background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.25); }
+.sub-task-badge-bar {
+  display: inline-block;
+  width: 36px; height: 4px;
+  background: var(--bg-hover);
+  border-radius: var(--r-full);
+  overflow: hidden;
+  vertical-align: middle;
+}
+.sub-task-badge-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent-green);
+  border-radius: var(--r-full);
+  transition: width 0.4s var(--ease);
+}
+
+/* Active sub-task toggle button state */
+.todo-action-btn--active {
+  background: rgba(139,92,246,0.15);
+  color: var(--accent-violet2);
+  border-color: rgba(139,92,246,0.3);
+}
+
+/* Sub-task expanded area */
+.todo-item--expanded { padding-bottom: var(--space-sm); }
+.sub-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) 44px; /* aligned with title */
+  border-top: 1px solid var(--border);
+}
+
+/* Sub-task row */
+.sub-task-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 4px 0;
+}
+.sub-task-row--done .sub-task-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+/* Sub-task checkbox */
+.sub-task-check {
+  flex-shrink: 0;
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-hover);
+  background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+  color: white;
+}
+.sub-task-check:hover { border-color: var(--accent-blue); }
+.sub-task-check--done {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+}
+
+/* Sub-task title */
+.sub-task-title {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+/* Delete sub-task */
+.sub-task-del {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  border-radius: var(--r-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.sub-task-row:hover .sub-task-del { opacity: 1; }
+.sub-task-del:hover { background: rgba(244,63,94,0.12); color: var(--accent-rose); }
+
+/* Add sub-task row */
+.sub-task-add-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: 4px;
+}
+.sub-task-input {
+  flex: 1;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sub-task-input:focus { border-color: var(--accent-violet); }
+.sub-task-input::placeholder { color: var(--text-muted); }
+.sub-task-add-btn {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--accent-violet);
+  color: white;
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.sub-task-add-btn:hover { opacity: 0.85; }
