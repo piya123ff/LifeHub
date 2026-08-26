@@ -38,7 +38,20 @@
     <link rel="icon" type="image/png" sizes="96x96" href="icons/icon-96.png" />
 
     <title>LifeHub</title>
-    <script type="module" crossorigin src="/lifehub/assets/index-E9fMoID0.js"></script>
+    <!-- Single Page Apps for GitHub Pages -->
+    <script type="text/javascript">
+      (function(l) {
+        if (l.search[1] === '/' ) {
+          var decoded = l.search.slice(1).split('&').map(function(s) { 
+            return s.replace(/~and~/g, '&')
+          }).join('?');
+          window.history.replaceState(null, null,
+              l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location))
+    </script>
+    <script type="module" crossorigin src="/lifehub/assets/index-CLNzT9sb.js"></script>
     <link rel="stylesheet" crossorigin href="/lifehub/assets/index-CfopSc-n.css">
   </head>
   <body>
